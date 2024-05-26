@@ -98,21 +98,24 @@ pub fn build(b: *std.Build) !void {
 
 
     // 4. build the game
+    const target_3ds = b.resolveTargetQuery(std.Target.Query.parse(.{
+        .arch_os_abi = "arm-freestanding-gnueabihf",
+        .cpu_features = "mpcore",    
+    }) catch @panic("bad target"));
     const elf = b.addExecutable(.{
         .name = "sample",
-        .target = b.resolveTargetQuery(std.Target.Query.parse(.{
-            .arch_os_abi = "arm-freestanding-gnueabihf",
-            .cpu_features = "mpcore",    
-        }) catch @panic("bad target")),
+        .target = target_3ds,
         .optimize = optimize,
     });
     const cflags = &[_][]const u8{
         "-mtp=soft",
         "-D_LIBC",
         "-D__DYNAMIC_REENT__",
-        "-DGETREENT_PROVIDED",
-        "-DREENTRANT_SYSCALLS_PROVIDED",
+        // "-DGETREENT_PROVIDED",
+        // "-DREENTRANT_SYSCALLS_PROVIDED",
         "-D__DEFAULT_UTF8__",
+
+        "-D_LDBL_EQ_DBL", // ldbl mant dig 53, dbl mant dig 53, flt mant dig 24
     };
     // newlib has a 16k line long make file so that's fun
     // we need both newlib libc and newlib libm
@@ -125,6 +128,12 @@ pub fn build(b: *std.Build) !void {
     elf.addAssemblyFile(c_stdout);
     elf.addAssemblyFile(crtls_dep.path("3dsx_crt0.s"));
     {
+        const asm_os = b.addObject(.{
+            .name = "3ds_asm_files",
+            .target = target_3ds,
+            .optimize = optimize,
+        });
+        asm_os.addIncludePath(libctru_dep.path("libctru/include"));
         // the files are '.s' but need to be '.S'
         const install_dir = std.Build.InstallDir{.custom = "tmp"};
 
@@ -135,11 +144,12 @@ pub fn build(b: *std.Build) !void {
             const fpath = libctru_dep.path(b.fmt("libctru/source/{s}", .{file[0]}));
 
             const install_file = b.addInstallFileWithDir(fpath, install_dir, file[1]);
-            elf.addAssemblyFile(.{
+            asm_os.addAssemblyFile(.{
                 .cwd_relative = b.getInstallPath(install_file.dir, install_file.dest_rel_path),
             });
-            elf.step.dependOn(&install_file.step);
+            asm_os.step.dependOn(&install_file.step);
         }
+        elf.addObject(asm_os);
     }
     elf.addCSourceFile(.{
         .file = .{.path = "src/main.c"},
@@ -153,8 +163,20 @@ pub fn build(b: *std.Build) !void {
     });
     elf.addCSourceFiles(.{
         .root = newlib_dep.path("newlib/libc"),
-        .files = newlib_files,
+        .files = newlib_libc_files,
         .flags = cflags,
+    });
+    elf.addCSourceFiles(.{
+        .root = newlib_dep.path("newlib/libm"),
+        .files = newlib_libm_files,
+        .flags = cflags,
+    });
+    elf.addCSourceFiles(.{
+        .root = newlib_dep.path("libgloss/libsysbase"),
+        .files = libgloss_libsysbase_files,
+        .flags = cflags ++ &[_][]const u8{
+            "-D_BUILDING_LIBSYSBASE",
+        },
     });
     elf.linker_script = crtls_dep.path("3dsx.ld"); // -T 3dsx.ld%s
 
@@ -209,7 +231,165 @@ fn captureStdoutNamed(run: *std.Build.Step.Run, name: []const u8) std.Build.Lazy
     return .{ .generated = &output.generated_file };
 }
 
-const newlib_files = &[_][]const u8{
+const libgloss_libsysbase_files = &[_][]const u8{
+    "syscall_support.c",
+};
+const newlib_libm_files = &[_][]const u8{
+    "common/acoshl.c",
+    "common/acosl.c",
+    "common/asinhl.c",
+    "common/asinl.c",
+    "common/atan2l.c",
+    "common/atanhl.c",
+    "common/atanl.c",
+    "common/cbrtl.c",
+    "common/ceill.c",
+    "common/copysignl.c",
+    "common/cosf.c",
+    "common/coshl.c",
+    "common/cosl.c",
+    "common/erfcl.c",
+    "common/erfl.c",
+    "common/exp.c",
+    "common/exp2.c",
+    "common/exp2l.c",
+    "common/exp_data.c",
+    "common/expl.c",
+    "common/expm1l.c",
+    "common/fabsl.c",
+    "common/fdiml.c",
+    "common/floorl.c",
+    "common/fmal.c",
+    "common/fmaxl.c",
+    "common/fminl.c",
+    "common/fmodl.c",
+    "common/frexpl.c",
+    "common/hypotl.c",
+    "common/ilogbl.c",
+    "common/isgreater.c",
+    "common/ldexpl.c",
+    "common/lgammal.c",
+    "common/llrintl.c",
+    "common/llroundl.c",
+    "common/log.c",
+    "common/log10l.c",
+    "common/log1pl.c",
+    "common/log2.c",
+    "common/log2_data.c",
+    "common/log2l.c",
+    "common/log_data.c",
+    "common/logbl.c",
+    "common/logl.c",
+    "common/lrintl.c",
+    "common/lroundl.c",
+    "common/math_err.c",
+    "common/math_errf.c",
+    "common/modfl.c",
+    "common/nanl.c",
+    "common/nearbyintl.c",
+    "common/nextafterl.c",
+    "common/nexttoward.c",
+    "common/nexttowardf.c",
+    "common/nexttowardl.c",
+    "common/pow.c",
+    "common/pow_log_data.c",
+    "common/powl.c",
+    "common/remainderl.c",
+    "common/remquol.c",
+    "common/rintl.c",
+    "common/roundl.c",
+    "common/s_cbrt.c",
+    "common/s_copysign.c",
+    "common/s_exp10.c",
+    "common/s_expm1.c",
+    "common/s_fdim.c",
+    "common/s_finite.c",
+    "common/s_fma.c",
+    "common/s_fmax.c",
+    "common/s_fmin.c",
+    "common/s_fpclassify.c",
+    "common/s_ilogb.c",
+    "common/s_infinity.c",
+    "common/s_isinf.c",
+    "common/s_isinfd.c",
+    "common/s_isnan.c",
+    "common/s_isnand.c",
+    "common/s_llrint.c",
+    "common/s_llround.c",
+    "common/s_log1p.c",
+    "common/s_log2.c",
+    "common/s_logb.c",
+    "common/s_lrint.c",
+    "common/s_lround.c",
+    "common/s_modf.c",
+    "common/s_nan.c",
+    "common/s_nearbyint.c",
+    "common/s_nextafter.c",
+    "common/s_pow10.c",
+    "common/s_remquo.c",
+    "common/s_rint.c",
+    "common/s_round.c",
+    "common/s_scalbln.c",
+    "common/s_scalbn.c",
+    "common/s_signbit.c",
+    "common/s_trunc.c",
+    "common/scalblnl.c",
+    "common/scalbnl.c",
+    "common/sf_cbrt.c",
+    "common/sf_copysign.c",
+    "common/sf_exp.c",
+    "common/sf_exp10.c",
+    "common/sf_exp2.c",
+    "common/sf_exp2_data.c",
+    "common/sf_expm1.c",
+    "common/sf_fdim.c",
+    "common/sf_finite.c",
+    "common/sf_fma.c",
+    "common/sf_fmax.c",
+    "common/sf_fmin.c",
+    "common/sf_fpclassify.c",
+    "common/sf_ilogb.c",
+    "common/sf_infinity.c",
+    "common/sf_isinf.c",
+    "common/sf_isinff.c",
+    "common/sf_isnan.c",
+    "common/sf_isnanf.c",
+    "common/sf_llrint.c",
+    "common/sf_llround.c",
+    "common/sf_log.c",
+    "common/sf_log1p.c",
+    "common/sf_log2.c",
+    "common/sf_log2_data.c",
+    "common/sf_log_data.c",
+    "common/sf_logb.c",
+    "common/sf_lrint.c",
+    "common/sf_lround.c",
+    "common/sf_modf.c",
+    "common/sf_nan.c",
+    "common/sf_nearbyint.c",
+    "common/sf_nextafter.c",
+    "common/sf_pow.c",
+    "common/sf_pow10.c",
+    "common/sf_pow_log2_data.c",
+    "common/sf_remquo.c",
+    "common/sf_rint.c",
+    "common/sf_round.c",
+    "common/sf_scalbln.c",
+    "common/sf_scalbn.c",
+    "common/sf_trunc.c",
+    "common/sincosf.c",
+    "common/sincosf_data.c",
+    "common/sinf.c",
+    "common/sinhl.c",
+    "common/sinl.c",
+    "common/sl_finite.c",
+    "common/sqrtl.c",
+    "common/tanhl.c",
+    "common/tanl.c",
+    "common/tgammal.c",
+    "common/truncl.c",
+};
+const newlib_libc_files = &[_][]const u8{
     "reent/closer.c",
     "reent/execr.c",
     "reent/fcntlr.c",
@@ -220,7 +400,7 @@ const newlib_files = &[_][]const u8{
     "reent/gettimeofdayr.c",
     "reent/impure.c",
     "reent/isattyr.c",
-    // "reent/linkr.c", // _dummy_link_syscalls
+    "reent/linkr.c", // REENTRANT_SYSCALLS_PROVIDED
     // "reent/lseek64r.c",
     "reent/lseekr.c",
     "reent/mkdirr.c",
@@ -230,7 +410,7 @@ const newlib_files = &[_][]const u8{
     "reent/reent.c",
     "reent/renamer.c",
     "reent/sbrkr.c",
-    // "reent/signalr.c", // _dummy_link_syscalls
+    "reent/signalr.c", // REENTRANT_SYSCALLS_PROVIDED
     // "reent/stat64r.c",
     "reent/statr.c",
     "reent/timesr.c",
@@ -426,7 +606,7 @@ const newlib_files = &[_][]const u8{
     "stdlib/msizer.c",
     "stdlib/mstats.c",
     "stdlib/mtrim.c",
-    "stdlib/nano-mallocr.c",
+    // "stdlib/nano-mallocr.c", // newlib_nano_formatted_io
     "stdlib/nrand48.c",
     "stdlib/on_exit.c",
     "stdlib/on_exit_args.c",
@@ -563,14 +743,14 @@ const newlib_files = &[_][]const u8{
     "stdio/iscanf.c",
     "stdio/makebuf.c",
     "stdio/mktemp.c",
-    "stdio/nano-svfprintf.c",
-    "stdio/nano-svfscanf.c",
-    "stdio/nano-vfprintf.c",
-    "stdio/nano-vfprintf_float.c",
-    "stdio/nano-vfprintf_i.c",
-    "stdio/nano-vfscanf.c",
-    "stdio/nano-vfscanf_float.c",
-    "stdio/nano-vfscanf_i.c",
+    // "stdio/nano-svfprintf.c", // newlib-nano-formatted-io
+    // "stdio/nano-svfscanf.c",
+    // "stdio/nano-vfprintf.c",
+    // "stdio/nano-vfprintf_float.c",
+    // "stdio/nano-vfprintf_i.c",
+    // "stdio/nano-vfscanf.c",
+    // "stdio/nano-vfscanf_float.c",
+    // "stdio/nano-vfscanf_i.c",
     "stdio/open_memstream.c",
     "stdio/perror.c",
     "stdio/printf.c",
