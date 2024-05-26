@@ -1,0 +1,42 @@
+.{
+    .name = "zig3ds",
+    .version = "0.0.0",
+
+    .dependencies = .{
+        .@"3dstools" = .{
+            .url = "https://github.com/devkitPro/3dstools/archive/26a73b75d37db9c5be2e6ea172ddfc0c6f278bea.tar.gz",
+            .hash = "1220d98ca01a4fc7e2b79dec0382183b2acc2950b854541a2561cf590e770b31a9e3",
+        },
+        .libctru = .{
+            .url = "https://github.com/devkitPro/libctru/archive/refs/tags/v2.3.1.tar.gz",
+            .hash = "1220500038392c32bc26f2a74ce2d3a0aa125a9f94d879006b0a5d3945f7f91890f5",
+        },
+        .citro2d = .{
+            .url = "https://github.com/devkitPro/citro2d/archive/refs/tags/v1.6.0.tar.gz",
+            .hash = "12200f77489b408d10951fcfb4bb82ea132480f18b59b8d59605a281c18915d0ebc5",
+        },
+        .citro3d = .{
+            .url = "https://github.com/devkitPro/citro3d/archive/refs/tags/v1.7.1.tar.gz",
+            .hash = "1220b31a0367edb9f4d9ba864e3fa08a678c5037597e5a08dffb8797846facce52ba",
+        },
+        .@"devkitarm-crtls" = .{
+            .url = "https://github.com/devkitPro/devkitarm-crtls/archive/refs/tags/v1.2.3.tar.gz",
+            .hash = "12205fe04d1cf4e51bc6f4b0de4948cfb418da4aa90233c966b6742e141e0b518688",
+        },
+        .newlib = .{
+            // uses the devkitPro branch
+            .url = "https://github.com/devkitPro/newlib/archive/216460be06ac8d594623b427f4b2fbd89ea109fa.tar.gz",
+            .hash = "1220ef864bf4df7f32fdf8fe42cc1b8f694dea0a8f86e44c8e4c6a203fb69b97adb4",
+        },
+        .@"general-tools" = .{
+            // uses the 'bin2s/name' branch because they've been working around it missing that functionality with sed
+            // despite having had a branch to do it for years?
+            .url = "https://github.com/devkitPro/general-tools/archive/5d2e0a3dc58fa3043ce5003871e7234ce181a1cd.tar.gz",
+            .hash = "1220f7770e26b4a1debf1ea37c0441790537c0bb25a7b8f7933da3d96b7a9b4c0467",
+        },
+    },
+
+    .paths = .{
+        "",
+    },
+}
