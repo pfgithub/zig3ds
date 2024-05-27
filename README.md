@@ -12,6 +12,11 @@ notes:
 
 - zig is llvm, devkitpro is for gcc
 - so far, one patch to newlib is required to add `return 0` to an `int` fn that doesn't have a return statement
-- likely another will be needed in `stdio/nano-vfprintf.c:551:17`: "using the result of an assignment as a condition without parentheses"
-- https://github.com/ziglang/zig/issues/20086
-  - should be able to fix this by removing .func / .endfunc because they're only used for debug info
+
+current issue:
+
+- both libgloss/libsysbase and newlib provide copies of the same functions:
+  - `libgloss/libsysbase/unlink.c` defines `_unlink_r` to call `devoptab_list[dev]->unlink_r()`
+  - `newlib/libc/reent/unlinkr.c` defines `_unlink_r` to call `_unlink`
+- which one is the right one?
+  - how does the makefile handle this? because one of them definitely goes into libsysbase_a_SOURCES and one of them definitely goes into libc_a_SOURCES, and presumably those libraries get linked together
