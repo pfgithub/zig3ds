@@ -22,7 +22,7 @@ fn addTool(b: *std.Build, dep: *std.Build.Dependency, tool_name: []const u8, fil
     exe.addIncludePath(dep.path(""));
 
     const insa = b.addInstallArtifact(exe, .{
-        .dest_dir = .{.override = .{.custom = "3dstools"}},
+        .dest_dir = .{ .override = .{ .custom = "3dstools" } },
     });
     b.getInstallStep().dependOn(&insa.step);
 
@@ -94,13 +94,10 @@ pub fn build(b: *std.Build) !void {
     bin2s_run_cmd.addFileArg(libctru_dep.path("libctru/data/default_font.bin"));
     const c_stdout = captureStdoutNamed(bin2s_run_cmd, "default_font_bin.s");
 
-
-
-
     // 4. build the game
     const target_3ds = b.resolveTargetQuery(std.Target.Query.parse(.{
         .arch_os_abi = "arm-freestanding-gnueabihf",
-        .cpu_features = "mpcore",    
+        .cpu_features = "mpcore",
     }) catch @panic("bad target"));
     const elf = b.addExecutable(.{
         .name = "sample",
@@ -114,7 +111,6 @@ pub fn build(b: *std.Build) !void {
         // "-DGETREENT_PROVIDED",
         // "-DREENTRANT_SYSCALLS_PROVIDED",
         "-D__DEFAULT_UTF8__",
-
         "-D_LDBL_EQ_DBL", // ldbl mant dig 53, dbl mant dig 53, flt mant dig 24
     };
     // newlib has a 16k line long make file so that's fun
@@ -128,31 +124,53 @@ pub fn build(b: *std.Build) !void {
     elf.addAssemblyFile(c_stdout);
     elf.addAssemblyFile(crtls_dep.path("3dsx_crt0.s"));
     {
+        // this is for error checking. the real addObject is below
+        // https://github.com/ziglang/zig/issues/20086
+        const asm_obj = std.Build.Step.Run.create(b, "3ds_asm_files");
+        asm_obj.addArgs(&.{
+            b.graph.zig_exe,
+            "cc",
+            "-c",
+            "-target",
+            try target_3ds.query.zigTriple(b.allocator),
+            b.fmt("-mcpu={s}", .{try target_3ds.query.serializeCpuAlloc(b.allocator)}),
+            "-I" ++ "src/asm_fix",
+        });
+        asm_obj.addArg("-o");
+        _ = asm_obj.addOutputFileArg("3ds_asm_files.o");
+
         const asm_os = b.addObject(.{
             .name = "3ds_asm_files",
             .target = target_3ds,
             .optimize = optimize,
         });
-        asm_os.addIncludePath(libctru_dep.path("libctru/include"));
+        asm_os.addIncludePath(.{ .path = "src/asm_fix" });
+        asm_os.step.dependOn(&asm_obj.step);
         // the files are '.s' but need to be '.S'
-        const install_dir = std.Build.InstallDir{.custom = "tmp"};
+        const install_dir = std.Build.InstallDir{ .custom = "tmp" };
 
         const tmpdir = b.makeTempPath();
         var tmpdir_dir = try std.fs.cwd().openDir(tmpdir, .{});
         defer tmpdir_dir.close();
-        for(libctru_s_files) |file| {
+        for (libctru_s_files) |file| {
             const fpath = libctru_dep.path(b.fmt("libctru/source/{s}", .{file[0]}));
 
             const install_file = b.addInstallFileWithDir(fpath, install_dir, file[1]);
+
             asm_os.addAssemblyFile(.{
                 .cwd_relative = b.getInstallPath(install_file.dir, install_file.dest_rel_path),
             });
             asm_os.step.dependOn(&install_file.step);
+
+            asm_obj.addFileArg(.{
+                .cwd_relative = b.getInstallPath(install_file.dir, install_file.dest_rel_path),
+            });
+            asm_obj.step.dependOn(&install_file.step);
         }
         elf.addObject(asm_os);
     }
     elf.addCSourceFile(.{
-        .file = .{.path = "src/main.c"},
+        .file = .{ .path = "src/main.c" },
         .flags = cflags,
     });
     // -Wno-error=unused-command-line-argument
@@ -184,7 +202,7 @@ pub fn build(b: *std.Build) !void {
     // TODO: -d: They assign space to common symbols even if a relocatable output file is specified
     elf.link_gc_sections = true; // --gc-sections
     // TODO: --use-blx: The ‘--use-blx’ switch enables the linker to use ARM/Thumb BLX instructions (available on ARMv5t and above) in various situations.
-    
+
     b.installArtifact(elf);
 
     // devkitpro gcc:
@@ -202,17 +220,15 @@ pub fn build(b: *std.Build) !void {
     //   "-mtp=soft", ✗ // 'soft' should be used (thread pointer access method)
     //   "-specs=" ✗ // yikes. related to the mtp=soft it seems.
     //       %include <sync-dmb.specs>
-    //      
+    //
     //       *link:
     //       + -T 3dsx.ld%s -d --emit-relocs --use-blx --gc-sections
-    //      
+    //
     //       *startfile:
     //       3dsx_crt0%O%s crti%O%s crtbegin%O%s
     // portlibs:
     //    https://github.com/devkitPro/pacman-packages/tree/master/3ds
     //    we can probably skip this stuff maybe
-
-    
 
 }
 
@@ -840,14 +856,14 @@ const newlib_libc_files = &[_][]const u8{
     "stdio/wsetup.c",
 };
 
-const libctru_s_files = &[_]struct{[]const u8, []const u8}{
+const libctru_s_files = &[_]struct { []const u8, []const u8 }{
     // cd ~/.cache/zig/p/1220500038392c32bc26f2a74ce2d3a0aa125a9f94d879006b0a5d3945f7f91890f5/libctru/source/
     // ls **/*.s | copy
-    .{"svc.s", "svc.S"},
-    .{"system/readtp.s", "readtp.S"},
-    .{"system/stack_adjust.s", "stack_adjust.S"},
+    .{ "svc.s", "svc.S" },
+    .{ "system/readtp.s", "readtp.S" },
+    .{ "system/stack_adjust.s", "stack_adjust.S" },
 };
-const libctru_files = &[_][]const u8 {
+const libctru_files = &[_][]const u8{
     // cd ~/.cache/zig/p/1220500038392c32bc26f2a74ce2d3a0aa125a9f94d879006b0a5d3945f7f91890f5/libctru/source/
     // ls **/*.{c,cpp} | copy
     "3dslink.c",
