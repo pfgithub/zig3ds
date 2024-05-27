@@ -120,6 +120,7 @@ pub fn build(b: *std.Build) !void {
     elf.addIncludePath(newlib_dep.path("newlib/libc/machine/arm"));
     elf.addIncludePath(newlib_dep.path("newlib/libc/include"));
     elf.addIncludePath(libctru_dep.path("libctru/include"));
+    elf.addIncludePath(.{ .path = "src/config_fix" });
     elf.addIncludePath(default_font_bin_h.dirname());
     elf.addAssemblyFile(c_stdout);
     elf.addAssemblyFile(crtls_dep.path("3dsx_crt0.s"));
@@ -248,7 +249,60 @@ fn captureStdoutNamed(run: *std.Build.Step.Run, name: []const u8) std.Build.Lazy
 }
 
 const libgloss_libsysbase_files = &[_][]const u8{
+    "_exit.c",
+    "abort.c",
+    "assert.c",
+    "build_argv.c",
+    "chdir.c",
+    "chmod.c",
+    "clocks.c",
+    "concatenate.c",
+    "dirent.c",
+    "environ.c",
+    "execve.c",
+    "fchmod.c",
+    "flock.c",
+    "fnmatch.c",
+    "fork.c",
+    "fpathconf.c",
+    "fstat.c",
+    "fsync.c",
+    "ftruncate.c",
+    "getpid.c",
+    "getreent.c",
+    "gettod.c",
+    "handle_manager.c",
+    "iosupport.c",
+    "isatty.c",
+    "kill.c",
+    "link.c",
+    "lseek.c",
+    "lstat.c",
+    "malloc_vars.c",
+    "mkdir.c",
+    "pthread.c",
+    "nanosleep.c",
+    "open.c",
+    "pathconf.c",
+    "read.c",
+    "readlink.c",
+    "realpath.c",
+    "rename.c",
+    "rmdir.c",
+    "sbrk.c",
+    "scandir.c",
+    "sleep.c",
+    "stat.c",
+    "statvfs.c",
+    "symlink.c",
     "syscall_support.c",
+    "times.c",
+    "truncate.c",
+    "unlink.c",
+    "usleep.c",
+    "utime.c",
+    "wait.c",
+    "write.c",
 };
 const newlib_libm_files = &[_][]const u8{
     "common/acoshl.c",
