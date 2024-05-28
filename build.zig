@@ -115,6 +115,8 @@ pub fn build(b: *std.Build) !void {
         "-DREENTRANT_SYSCALLS_PROVIDED",
         "-D__DEFAULT_UTF8__",
         "-D_LDBL_EQ_DBL", // ldbl mant dig 53, dbl mant dig 53, flt mant dig 24
+        "-D_HAVE_INITFINI_ARRAY",
+        "-D_MB_CAPABLE",
     };
     // newlib has a 16k line long make file so that's fun
     // we need both newlib libc and newlib libm
@@ -126,6 +128,8 @@ pub fn build(b: *std.Build) !void {
     elf.addIncludePath(.{ .path = "src/config_fix" });
     elf.addIncludePath(default_font_bin_h.dirname());
     elf.addAssemblyFile(c_stdout);
+    // elf.addIncludePath(newlib_dep.path("include"));
+    // elf.addAssemblyFile(newlib_dep.path("libgloss/arm/crt0.S"));
     elf.addAssemblyFile(crtls_dep.path("3dsx_crt0.s"));
     {
         // this is for error checking. the real addObject is below
@@ -253,15 +257,15 @@ fn captureStdoutNamed(run: *std.Build.Step.Run, name: []const u8) std.Build.Lazy
 
 const libgloss_libsysbase_files = &[_][]const u8{
     "_exit.c",
-    "abort.c",
-    "assert.c",
+    // "abort.c", // prefer newlib abort
+    // "assert.c", // prefer newlib assert
     "build_argv.c",
     "chdir.c",
     "chmod.c",
     "clocks.c",
     "concatenate.c",
     "dirent.c",
-    "environ.c",
+    // "environ.c", // prefer newlib environ
     "execve.c",
     "fchmod.c",
     "flock.c",
@@ -473,7 +477,7 @@ const newlib_libc_files = &[_][]const u8{
     "reent/gettimeofdayr.c",
     "reent/impure.c",
     "reent/isattyr.c",
-    "reent/linkr.c", // REENTRANT_SYSCALLS_PROVIDED
+    // "reent/linkr.c", // defines _dummy_link_syscalls when REENTRANT_SYSCALLS_PROVIDED
     // "reent/lseek64r.c",
     "reent/lseekr.c",
     "reent/mkdirr.c",
@@ -483,7 +487,7 @@ const newlib_libc_files = &[_][]const u8{
     "reent/reent.c",
     "reent/renamer.c",
     "reent/sbrkr.c",
-    "reent/signalr.c", // REENTRANT_SYSCALLS_PROVIDED
+    // "reent/signalr.c", // defines _dummy_link_syscalls when REENTRANT_SYSCALLS_PROVIDED
     // "reent/stat64r.c",
     "reent/statr.c",
     "reent/timesr.c",
@@ -911,6 +915,34 @@ const newlib_libc_files = &[_][]const u8{
     "stdio/wprintf.c",
     "stdio/wscanf.c",
     "stdio/wsetup.c",
+    "misc/__dprintf.c",
+    "misc/ffs.c",
+    "misc/fini.c",
+    "misc/init.c",
+    "misc/lock.c",
+    "misc/unctrl.c",
+    "signal/psignal.c",
+    "signal/raise.c",
+    "signal/signal.c",
+    "signal/sig2str.c",
+    "locale/locale.c",
+    "locale/localeconv.c",
+    "ctype/ctype_.c",
+    "ctype/isalnum.c",
+    "ctype/isalpha.c",
+    "ctype/iscntrl.c",
+    "ctype/isdigit.c",
+    "ctype/islower.c",
+    "ctype/isupper.c",
+    "ctype/isprint.c",
+    "ctype/ispunct.c",
+    "ctype/isspace.c",
+    "ctype/isxdigit.c",
+    "ctype/tolower.c",
+    "ctype/toupper.c",
+    "search/bsearch.c",
+    "search/ndbm.c",
+    "search/qsort.c",
 };
 
 const libctru_s_files = &[_]struct { []const u8, []const u8 }{
