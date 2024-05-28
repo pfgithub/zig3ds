@@ -32,6 +32,11 @@ fn addTool(b: *std.Build, dep: *std.Build.Dependency, tool_name: []const u8, fil
 pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
+    const target_3ds = b.resolveTargetQuery(std.Target.Query.parse(.{
+        .arch_os_abi = "arm-freestanding-gnueabihf",
+        .cpu_features = "mpcore",
+    }) catch @panic("bad target"));
+
     // 1. we need 3dstools
     const @"3dstools_dep" = b.dependency("3dstools", .{});
     const @"3dstools_cxitool_dep" = b.dependency("3dstools-cxitool", .{});
@@ -77,10 +82,7 @@ pub fn build(b: *std.Build) !void {
     const newlib_dep = b.dependency("newlib", .{});
     const examples_dep = b.dependency("3ds-examples", .{});
 
-    // 2. build newlib `crt1.o` or `crt2.o`.
-    // TODO
-
-    // 3. build libctru dependencies
+    // libctru dependencies
     const bin2s_run_cmd = b.addRunArtifact(bin2s_tool);
     bin2s_run_cmd.addArg("-H");
     const default_font_bin_h = bin2s_run_cmd.addOutputFileArg("default_font_bin.h");
@@ -89,41 +91,15 @@ pub fn build(b: *std.Build) !void {
     bin2s_run_cmd.addFileArg(libctru_dep.path("libctru/data/default_font.bin"));
     const c_stdout = captureStdoutNamed(bin2s_run_cmd, "default_font_bin.s");
 
-    // 4. build the game
-    const target_3ds = b.resolveTargetQuery(std.Target.Query.parse(.{
-        .arch_os_abi = "arm-freestanding-gnueabihf",
-        .cpu_features = "mpcore",
-    }) catch @panic("bad target"));
-    const elf = b.addExecutable(.{
-        .name = "sample",
+    const asm_os = b.addObject(.{
+        .name = "3ds_asm_files",
         .target = target_3ds,
         .optimize = optimize,
     });
-    elf.defineCMacro("__3DS__", null);
-    elf.defineCMacro("_LIBC", null);
-    elf.defineCMacro("__DYNAMIC_REENT__", null);
-    elf.defineCMacro("GETREENT_PROVIDED", null);
-    elf.defineCMacro("REENTRANT_SYSCALLS_PROVIDED", null);
-    elf.defineCMacro("__DEFAULT_UTF8__", null);
-    elf.defineCMacro("_LDBL_EQ_DBL", null); // ldbl mant dig 53, dbl mant dig 53, flt mant dig 24
-    elf.defineCMacro("_HAVE_INITFINI_ARRAY", null);
-    elf.defineCMacro("_MB_CAPABLE", null);
-    const cflags = &[_][]const u8{
-        "-mtp=soft",
-    };
-
-    elf.addIncludePath(newlib_dep.path("newlib/libc/sys/arm"));
-    elf.addIncludePath(newlib_dep.path("newlib/libc/machine/arm"));
-    elf.addIncludePath(newlib_dep.path("newlib/libc/include"));
-    elf.addIncludePath(libctru_dep.path("libctru/include"));
-    elf.addIncludePath(.{ .path = "src/config_fix" });
-    elf.addIncludePath(default_font_bin_h.dirname());
-    elf.addAssemblyFile(c_stdout);
-    elf.addAssemblyFile(crtls_dep.path("3dsx_crt0.s"));
     {
         // libctru has asm files thar are '.s' but need to be '.S'
 
-        // this is for error checking. the real addObject is below
+        // this run step is for error checking only.
         // https://github.com/ziglang/zig/issues/20086
         const asm_obj = std.Build.Step.Run.create(b, "3ds_asm_files");
         asm_obj.addArgs(&.{
@@ -138,11 +114,6 @@ pub fn build(b: *std.Build) !void {
         asm_obj.addArg("-o");
         _ = asm_obj.addOutputFileArg("3ds_asm_files.o");
 
-        const asm_os = b.addObject(.{
-            .name = "3ds_asm_files",
-            .target = target_3ds,
-            .optimize = optimize,
-        });
         asm_os.addIncludePath(.{ .path = "src/asm_fix" });
         asm_os.step.dependOn(&asm_obj.step);
         const install_dir = std.Build.InstallDir{ .custom = "tmp" };
@@ -165,34 +136,86 @@ pub fn build(b: *std.Build) !void {
             });
             asm_obj.step.dependOn(&install_file.step);
         }
-        elf.addObject(asm_os);
     }
+
+    // 4. build the game
+    const cflags = &[_][]const u8{
+        "-mtp=soft",
+    };
+    const elf = b.addExecutable(.{
+        .name = "sample",
+        .target = target_3ds,
+        .optimize = optimize,
+    });
+    elf.defineCMacro("__3DS__", null);
     elf.addCSourceFile(.{
         .file = examples_dep.path("graphics/printing/hello-world/source/main.c"),
         .flags = cflags,
     });
-    elf.addCSourceFiles(.{
-        .root = libctru_dep.path("libctru/source"),
-        .files = libctru_files,
-        .flags = cflags,
-    });
-    elf.addCSourceFiles(.{
-        .root = newlib_dep.path("newlib/libc"),
-        .files = newlib_libc_files,
-        .flags = cflags,
-    });
-    elf.addCSourceFiles(.{
-        .root = newlib_dep.path("newlib/libm"),
-        .files = newlib_libm_files,
-        .flags = cflags,
-    });
-    elf.addCSourceFiles(.{
-        .root = newlib_dep.path("libgloss/libsysbase"),
-        .files = libgloss_libsysbase_files,
-        .flags = cflags ++ &[_][]const u8{
-            "-D_BUILDING_LIBSYSBASE",
-        },
-    });
+
+    // newlib_libc
+    {
+        // to properly build newlib into an object file and folder of header files:
+        // - we need to
+
+        elf.defineCMacro("_LIBC", null);
+        elf.defineCMacro("__DYNAMIC_REENT__", null);
+        elf.defineCMacro("GETREENT_PROVIDED", null);
+        elf.defineCMacro("REENTRANT_SYSCALLS_PROVIDED", null);
+        elf.defineCMacro("__DEFAULT_UTF8__", null);
+        elf.defineCMacro("_LDBL_EQ_DBL", null); // ldbl mant dig 53, dbl mant dig 53, flt mant dig 24
+        elf.defineCMacro("_HAVE_INITFINI_ARRAY", null);
+        elf.defineCMacro("_MB_CAPABLE", null);
+
+        elf.addIncludePath(newlib_dep.path("newlib/libc/sys/arm"));
+        elf.addIncludePath(newlib_dep.path("newlib/libc/machine/arm"));
+        elf.addIncludePath(newlib_dep.path("newlib/libc/include"));
+
+        elf.addCSourceFiles(.{
+            .root = newlib_dep.path("newlib/libc"),
+            .files = newlib_libc_files,
+            .flags = cflags,
+        });
+
+        // libgloss_libsysbase
+        {
+            elf.addIncludePath(.{ .path = "src/config_fix" });
+
+            elf.addCSourceFiles(.{
+                .root = newlib_dep.path("libgloss/libsysbase"),
+                .files = libgloss_libsysbase_files,
+                .flags = cflags ++ &[_][]const u8{
+                    "-D_BUILDING_LIBSYSBASE",
+                },
+            });
+        }
+    }
+    // newlib_libm
+    {
+        elf.addCSourceFiles(.{
+            .root = newlib_dep.path("newlib/libm"),
+            .files = newlib_libm_files,
+            .flags = cflags,
+        });
+    }
+
+    // libctru
+    {
+        elf.addIncludePath(libctru_dep.path("libctru/include"));
+        elf.addAssemblyFile(crtls_dep.path("3dsx_crt0.s"));
+
+        elf.addIncludePath(default_font_bin_h.dirname());
+        elf.addAssemblyFile(c_stdout);
+
+        elf.addObject(asm_os);
+
+        elf.addCSourceFiles(.{
+            .root = libctru_dep.path("libctru/source"),
+            .files = libctru_files,
+            .flags = cflags,
+        });
+    }
+
     elf.linker_script = crtls_dep.path("3dsx.ld"); // -T 3dsx.ld%s
 
     elf.link_emit_relocs = true; // --emit-relocs
