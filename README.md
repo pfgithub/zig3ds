@@ -45,6 +45,7 @@ elf.linkLibrary(zig3ds_dep.artifact("citro2d"));
 - [ ] both libgloss/libsysbase and newlib provide copies of the same functions. Which one is the right one? I chose newlib/libc:
   - `libgloss/libsysbase/unlink.c` defines `_unlink_r` to call `devoptab_list[dev]->unlink_r()`
   - `newlib/libc/reent/unlinkr.c` defines `_unlink_r` to call `_unlink`
+- [ ] `c++` files are supposed to be compiled with `-fno-rtti -fno-exceptions -std=gnu++11`
 
 # TODO Features
 
