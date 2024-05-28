@@ -106,10 +106,13 @@ pub fn build(b: *std.Build) !void {
     });
     const cflags = &[_][]const u8{
         "-mtp=soft",
+        "-ffunction-sections",
+        "-D__3DS__",
+
         "-D_LIBC",
         "-D__DYNAMIC_REENT__",
-        // "-DGETREENT_PROVIDED",
-        // "-DREENTRANT_SYSCALLS_PROVIDED",
+        "-DGETREENT_PROVIDED",
+        "-DREENTRANT_SYSCALLS_PROVIDED",
         "-D__DEFAULT_UTF8__",
         "-D_LDBL_EQ_DBL", // ldbl mant dig 53, dbl mant dig 53, flt mant dig 24
     };
