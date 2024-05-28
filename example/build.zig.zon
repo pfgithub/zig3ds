@@ -1,0 +1,14 @@
+.{
+    .name = "",
+    .version = "0.0.0",
+
+    .dependencies = .{
+        .zig3ds = .{
+            .path = "..",
+        },
+    },
+
+    .paths = .{
+        "",
+    },
+}

@@ -46,7 +46,7 @@ fn exposeArbitrary(b: *std.Build, name: []const u8, comptime ty: type, val: *con
     mod.owner = @ptrCast(@alignCast(@constCast(valv)));
 }
 fn findArbitrary(dep: *std.Build.Dependency, comptime ty: type, name: []const u8) *const ty {
-    const name_fmt = dep.builder.fmt("__cincluder_{s}", .{name});
+    const name_fmt = dep.builder.fmt("__exposearbitrary_{s}", .{name});
     const modv = dep.module(name_fmt);
     // HACKHACKHACK
     const anyptr: *const AnyPtr = @ptrCast(@alignCast(modv.owner));
@@ -54,7 +54,7 @@ fn findArbitrary(dep: *std.Build.Dependency, comptime ty: type, name: []const u8
     return @ptrCast(@alignCast(anyptr.val));
 }
 
-const CIncluder = struct {
+pub const CIncluder = struct {
     //! addStaticLibrary + linkLibrary() has this functionality already
     //! however, it doesn't support define_macros, and it seems to be
     //! designed for one per build.zig. also, it probably doesn't support
@@ -91,7 +91,7 @@ const CIncluder = struct {
         return findArbitrary(dep, CIncluder, name);
     }
 
-    fn applyTo(self: *const CIncluder, mod: *std.Build.Module) void {
+    pub fn applyTo(self: *const CIncluder, mod: *std.Build.Module) void {
         for (self.define_macros) |m| mod.addCMacro(m[0], m[1] orelse "1");
         for (self.add_include_paths) |ip| mod.addIncludePath(ip);
     }
@@ -241,6 +241,7 @@ pub fn build(b: *std.Build) !void {
             "-D_BUILDING_LIBSYSBASE",
         },
     });
+    b.installArtifact(libgloss_libsysbase);
 
     // newlib (libc)
     const libc = b.addStaticLibrary(.{
@@ -254,6 +255,7 @@ pub fn build(b: *std.Build) !void {
         .files = newlib_libc_files,
         .flags = cflags,
     });
+    b.installArtifact(libc);
 
     // libm
     const libm = b.addStaticLibrary(.{
@@ -267,6 +269,7 @@ pub fn build(b: *std.Build) !void {
         .files = newlib_libm_files,
         .flags = cflags,
     });
+    b.installArtifact(libm);
 
     // libctru
     const libctru_includer = CIncluder.createCIncluder(b, .{
@@ -280,6 +283,7 @@ pub fn build(b: *std.Build) !void {
         .target = target_3ds,
         .optimize = optimize,
     });
+    b.installArtifact(libctru);
     {
         libc_includer.applyTo(&libctru.root_module);
         libctru_includer.applyTo(&libctru.root_module);
@@ -300,6 +304,7 @@ pub fn build(b: *std.Build) !void {
 
     // 4. build the game
     const build_helper = try b.allocator.create(T3dsBuildHelper);
+    exposeArbitrary(b, "build_helper", T3dsBuildHelper, build_helper);
     build_helper.* = .{
         .target = target_3ds,
         .tool_3dsxtool = tool_3dsxtool,
@@ -364,6 +369,10 @@ pub const T3dsBuildHelper = struct {
     target: std.Build.ResolvedTarget,
     tool_3dsxtool: *std.Build.Step.Compile,
     crtls_dep: *std.Build.Dependency,
+
+    pub fn find(dep: *std.Build.Dependency, name: []const u8) *const T3dsBuildHelper {
+        return findArbitrary(dep, T3dsBuildHelper, name);
+    }
 
     pub fn link(bh: *const T3dsBuildHelper, elf: *std.Build.Step.Compile) void {
         elf.linker_script = bh.crtls_dep.path("3dsx.ld"); // -T 3dsx.ld%s
