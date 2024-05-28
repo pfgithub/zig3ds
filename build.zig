@@ -29,6 +29,31 @@ fn addTool(b: *std.Build, dep: *std.Build.Dependency, tool_name: []const u8, fil
     return exe;
 }
 
+const AnyPtr = struct {
+    id: [*]const u8,
+    val: *const anyopaque,
+};
+fn exposeArbitrary(b: *std.Build, name: []const u8, comptime ty: type, val: *const ty) void {
+    const valv = b.allocator.create(AnyPtr) catch @panic("oom");
+    valv.* = .{
+        .id = @typeName(ty),
+        .val = val,
+    };
+    const name_fmt = b.fmt("__exposearbitrary_{s}", .{name});
+    const mod = b.addModule(name_fmt, .{});
+    // HACKHACKHACK
+    mod.* = undefined;
+    mod.owner = @ptrCast(@alignCast(@constCast(valv)));
+}
+fn findArbitrary(dep: *std.Build.Dependency, comptime ty: type, name: []const u8) *const ty {
+    const name_fmt = dep.builder.fmt("__cincluder_{s}", .{name});
+    const modv = dep.module(name_fmt);
+    // HACKHACKHACK
+    const anyptr: *const AnyPtr = @ptrCast(@alignCast(modv.owner));
+    std.debug.assert(anyptr.id == @typeName(ty));
+    return @ptrCast(@alignCast(anyptr.val));
+}
+
 const CIncluder = struct {
     //! addStaticLibrary + linkLibrary() has this functionality already
     //! however, it doesn't support define_macros, and it seems to be
@@ -60,17 +85,10 @@ const CIncluder = struct {
     }
 
     pub fn expose(self: *const CIncluder, name: []const u8) void {
-        const name_fmt = self.owner.fmt("__cincluder_{s}", .{name});
-        const mod = self.owner.addModule(name_fmt, .{});
-        // HACKHACKHACK
-        mod.* = undefined;
-        mod.owner = @ptrCast(@alignCast(@constCast(self)));
+        exposeArbitrary(self.owner, name, CIncluder, self);
     }
     pub fn find(dep: *std.Build.Dependency, name: []const u8) *const CIncluder {
-        const name_fmt = dep.builder.fmt("__cincluder_{s}", .{name});
-        const modv = dep.module(name_fmt);
-        // HACKHACKHACK
-        return @ptrCast(@alignCast(modv.owner));
+        return findArbitrary(dep, CIncluder, name);
     }
 
     fn applyTo(self: *const CIncluder, mod: *std.Build.Module) void {
@@ -281,16 +299,23 @@ pub fn build(b: *std.Build) !void {
     }
 
     // 4. build the game
+    const build_helper = try b.allocator.create(T3dsBuildHelper);
+    build_helper.* = .{
+        .target = target_3ds,
+        .tool_3dsxtool = tool_3dsxtool,
+        .crtls_dep = crtls_dep,
+    };
+
     const elf = b.addExecutable(.{
         .name = "sample",
         .target = target_3ds,
         .optimize = optimize,
     });
-    // elf.defineCMacro("__3DS__", null);
     elf.addCSourceFile(.{
         .file = examples_dep.path("graphics/printing/hello-world/source/main.c"),
         .flags = cflags,
     });
+    build_helper.link(elf);
 
     libc_includer.applyTo(&elf.root_module);
     libctru_includer.applyTo(&elf.root_module);
@@ -299,25 +324,14 @@ pub fn build(b: *std.Build) !void {
     elf.linkLibrary(libm);
     elf.linkLibrary(libctru);
 
-    elf.linker_script = crtls_dep.path("3dsx.ld"); // -T 3dsx.ld%s
-
-    elf.link_emit_relocs = true; // --emit-relocs
-    elf.root_module.strip = false; // can't combine 'strip-all' with 'emit-relocs'
-    // TODO: -d: They assign space to common symbols even if a relocatable output file is specified
-    // TODO: --use-blx: The ‘--use-blx’ switch enables the linker to use ARM/Thumb BLX instructions (available on ARMv5t and above) in various situations.
-    // skipped gc-sections because it seems to have no effect on ReleaseSmall builds
-
     // elf -> 3dsx
-    const output_3dsx_name = b.fmt("{s}.3dsx", .{elf.name});
-    const run_3dsxtool = b.addRunArtifact(tool_3dsxtool);
-    run_3dsxtool.addFileArg(elf.getEmittedBin());
-    const output_3dsx = run_3dsxtool.addOutputFileArg(output_3dsx_name);
+    const output_3dsx = build_helper.to3dsx(elf);
 
-    const output_3dsx_install = b.addInstallFileWithDir(output_3dsx, .bin, output_3dsx_name);
-    const output_3dsx_path = b.getInstallPath(.bin, output_3dsx_name);
+    const output_3dsx_install = b.addInstallFileWithDir(output_3dsx, .bin, "sample.3dsx");
+    const output_3dsx_path = b.getInstallPath(.bin, "sample.3dsx");
     b.getInstallStep().dependOn(&output_3dsx_install.step);
-    // elf_to_3dsx
 
+    // elf_to_3dsx
     const run_step = std.Build.Step.Run.create(b, b.fmt("run", .{}));
     run_step.addArg("citra");
     run_step.addArg(output_3dsx_path);
@@ -326,31 +340,28 @@ pub fn build(b: *std.Build) !void {
     run_step_cmdl.dependOn(&run_step.step);
 }
 
-pub const T3dsBuilder = struct {
-    owner: *std.Build,
-    elf: *std.Build.Step.Compile,
-    output_3dsx: std.Build.LazyPath,
+pub const T3dsBuildHelper = struct {
+    target: std.Build.ResolvedTarget,
+    tool_3dsxtool: *std.Build.Step.Compile,
+    crtls_dep: *std.Build.Dependency,
 
-    pub fn create(b: *std.Build, t3ds_dep: *std.Build.Dependency) *T3dsBuilder {
-        const target_3ds = null;
-        const optimize = null;
-        const elf = b.addExecutable(.{
-            .name = "sample",
-            .target = target_3ds,
-            .optimize = optimize,
-        });
-        elf.defineCMacro("__3DS__", null);
+    pub fn link(bh: *const T3dsBuildHelper, elf: *std.Build.Step.Compile) void {
+        elf.linker_script = bh.crtls_dep.path("3dsx.ld"); // -T 3dsx.ld%s
 
-        const artifact_3dsxtool = t3ds_dep.artifact("3dsxtool");
-        _ = artifact_3dsxtool;
+        elf.link_emit_relocs = true; // --emit-relocs
+        elf.root_module.strip = false; // can't combine 'strip-all' with 'emit-relocs'
+        // TODO: -d: They assign space to common symbols even if a relocatable output file is specified
+        // TODO: --use-blx: The ‘--use-blx’ switch enables the linker to use ARM/Thumb BLX instructions (available on ARMv5t and above) in various situations.
+        // skipped gc-sections because it seems to have no effect on ReleaseSmall builds
+    }
 
-        const res = b.create(T3dsBuilder) catch @panic("oom");
-        res.* = .{
-            .owner = b,
-            .elf = elf,
-            .output_3dsx = null,
-        };
-        return res;
+    pub fn to3dsx(bh: *const T3dsBuildHelper, elf: *std.Build.Step.Compile) std.Build.LazyPath {
+        const b = elf.root_module.owner;
+        const output_3dsx_name = b.fmt("{s}.3dsx", .{elf.name});
+        const run_3dsxtool = b.addRunArtifact(bh.tool_3dsxtool);
+        run_3dsxtool.addFileArg(elf.getEmittedBin());
+        const output_3dsx = run_3dsxtool.addOutputFileArg(output_3dsx_name);
+        return output_3dsx;
     }
 };
 
