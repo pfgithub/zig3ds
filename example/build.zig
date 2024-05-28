@@ -30,7 +30,6 @@ pub fn build(b: *std.Build) !void {
     const output_3dsx_path = b.getInstallPath(.bin, "sample.3dsx");
     b.getInstallStep().dependOn(&output_3dsx_install.step);
 
-    // elf_to_3dsx
     const run_step = std.Build.Step.Run.create(b, b.fmt("citra run", .{}));
     run_step.addArg("citra");
     run_step.addArg(output_3dsx_path);
