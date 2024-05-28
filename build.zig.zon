@@ -38,6 +38,10 @@
             .url = "https://github.com/devkitPro/general-tools/archive/5d2e0a3dc58fa3043ce5003871e7234ce181a1cd.tar.gz",
             .hash = "1220f7770e26b4a1debf1ea37c0441790537c0bb25a7b8f7933da3d96b7a9b4c0467",
         },
+        .@"3ds-examples" = .{
+            .url = "https://github.com/devkitPro/3ds-examples/archive/979ab794de89f1ce30a2e307a8dc17fc4fe1d684.tar.gz",
+            .hash = "1220e68d87f97d1d62dcdbeb648748d5b3fd00fc44bb7992e880ef5c3e97fc0d39cc",
+        },
     },
 
     .paths = .{

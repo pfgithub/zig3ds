@@ -82,6 +82,7 @@ pub fn build(b: *std.Build) !void {
     const libctru_dep = b.dependency("libctru", .{});
     const crtls_dep = b.dependency("devkitarm-crtls", .{});
     const newlib_dep = b.dependency("newlib", .{});
+    const examples_dep = b.dependency("3ds-examples", .{});
 
     // 2. build newlib `crt1.o` or `crt2.o`.
     // TODO
@@ -179,7 +180,7 @@ pub fn build(b: *std.Build) !void {
         elf.addObject(asm_os);
     }
     elf.addCSourceFile(.{
-        .file = .{ .path = "src/main.c" },
+        .file = examples_dep.path("graphics/printing/hello-world/source/main.c"),
         .flags = cflags,
     });
     // -Wno-error=unused-command-line-argument
