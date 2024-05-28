@@ -194,7 +194,7 @@ pub fn build(b: *std.Build) !void {
     };
 
     // newlib
-    const newlib_include = CIncluder.createCIncluder(b, .{
+    const libc_includer = CIncluder.createCIncluder(b, .{
         .define_macros = &.{
             .{ "_LIBC", null },
             .{ "__DYNAMIC_REENT__", null },
@@ -211,7 +211,49 @@ pub fn build(b: *std.Build) !void {
             newlib_dep.path("newlib/libc/include"),
         },
     });
-    newlib_include.expose("libc");
+    libc_includer.expose("libc");
+
+    // libgloss_libsysbase
+    const libgloss_libsysbase = b.addStaticLibrary(.{
+        .name = "libgloss_libsysbase",
+        .target = target_3ds,
+        .optimize = optimize,
+    });
+    libc_includer.applyTo(&libgloss_libsysbase.root_module);
+    libgloss_libsysbase.addIncludePath(.{ .path = "src/config_fix" });
+    libgloss_libsysbase.addCSourceFiles(.{
+        .root = newlib_dep.path("libgloss/libsysbase"),
+        .files = libgloss_libsysbase_files,
+        .flags = cflags ++ &[_][]const u8{
+            "-D_BUILDING_LIBSYSBASE",
+        },
+    });
+
+    // newlib (libc)
+    const libc = b.addStaticLibrary(.{
+        .name = "libc",
+        .target = target_3ds,
+        .optimize = optimize,
+    });
+    libc_includer.applyTo(&libc.root_module);
+    libc.addCSourceFiles(.{
+        .root = newlib_dep.path("newlib/libc"),
+        .files = newlib_libc_files,
+        .flags = cflags,
+    });
+
+    // libm
+    const libm = b.addStaticLibrary(.{
+        .name = "libm",
+        .target = target_3ds,
+        .optimize = optimize,
+    });
+    libc_includer.applyTo(&libm.root_module);
+    libm.addCSourceFiles(.{
+        .root = newlib_dep.path("newlib/libm"),
+        .files = newlib_libm_files,
+        .flags = cflags,
+    });
 
     // libctru
     const libctru_includer = CIncluder.createCIncluder(b, .{
@@ -226,7 +268,7 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
     {
-        newlib_include.applyTo(&libctru.root_module);
+        libc_includer.applyTo(&libctru.root_module);
         libctru_includer.applyTo(&libctru.root_module);
 
         libctru.addAssemblyFile(crtls_dep.path("3dsx_crt0.s"));
@@ -249,50 +291,18 @@ pub fn build(b: *std.Build) !void {
         .target = target_3ds,
         .optimize = optimize,
     });
-    elf.defineCMacro("__3DS__", null);
+    // elf.defineCMacro("__3DS__", null);
     elf.addCSourceFile(.{
         .file = examples_dep.path("graphics/printing/hello-world/source/main.c"),
         .flags = cflags,
     });
 
-    // newlib_libc
-    {
-        // to properly build newlib into an object file and folder of header files:
-        // - we need to
-
-        newlib_include.applyTo(&elf.root_module);
-
-        elf.addCSourceFiles(.{
-            .root = newlib_dep.path("newlib/libc"),
-            .files = newlib_libc_files,
-            .flags = cflags,
-        });
-
-        // libgloss_libsysbase
-        {
-            elf.addIncludePath(.{ .path = "src/config_fix" });
-
-            elf.addCSourceFiles(.{
-                .root = newlib_dep.path("libgloss/libsysbase"),
-                .files = libgloss_libsysbase_files,
-                .flags = cflags ++ &[_][]const u8{
-                    "-D_BUILDING_LIBSYSBASE",
-                },
-            });
-        }
-    }
-    // newlib_libm
-    {
-        elf.addCSourceFiles(.{
-            .root = newlib_dep.path("newlib/libm"),
-            .files = newlib_libm_files,
-            .flags = cflags,
-        });
-    }
-
-    // libctru
-    elf.linkLibrary(libctru);
+    libc_includer.applyTo(&elf.root_module);
     libctru_includer.applyTo(&elf.root_module);
+    elf.linkLibrary(libc);
+    elf.linkLibrary(libgloss_libsysbase);
+    elf.linkLibrary(libm);
+    elf.linkLibrary(libctru);
 
     elf.linker_script = crtls_dep.path("3dsx.ld"); // -T 3dsx.ld%s
 
