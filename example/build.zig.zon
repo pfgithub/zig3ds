@@ -4,6 +4,8 @@
 
     .dependencies = .{
         .zig3ds = .{
+            // in your project, this should be
+            // .url = "https://github.com/pfgithub/zig3ds/archive/LATEST_COMMIT_HASH.tar.xz"
             .path = "..",
         },
     },

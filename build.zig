@@ -241,7 +241,6 @@ pub fn build(b: *std.Build) !void {
             "-D_BUILDING_LIBSYSBASE",
         },
     });
-    b.installArtifact(libgloss_libsysbase);
 
     // newlib (libc)
     const libc = b.addStaticLibrary(.{
@@ -255,6 +254,7 @@ pub fn build(b: *std.Build) !void {
         .files = newlib_libc_files,
         .flags = cflags,
     });
+    libc.linkLibrary(libgloss_libsysbase);
     b.installArtifact(libc);
 
     // libm
@@ -334,7 +334,6 @@ pub fn build(b: *std.Build) !void {
         if (example.dependencies.c) {
             libc_includer.applyTo(&elf.root_module);
             elf.linkLibrary(libc);
-            elf.linkLibrary(libgloss_libsysbase);
         }
         if (example.dependencies.m) {
             elf.linkLibrary(libm);

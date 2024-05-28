@@ -23,7 +23,6 @@ pub fn build(b: *std.Build) !void {
 
     libc_includer.applyTo(&elf.root_module);
     elf.linkLibrary(zig3ds_dep.artifact("libc"));
-    elf.linkLibrary(zig3ds_dep.artifact("libgloss_libsysbase"));
     elf.linkLibrary(zig3ds_dep.artifact("libm"));
     libctru_includer.applyTo(&elf.root_module);
     elf.linkLibrary(zig3ds_dep.artifact("libctru"));
