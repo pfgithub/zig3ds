@@ -99,19 +99,17 @@ pub fn build(b: *std.Build) !void {
         .target = target_3ds,
         .optimize = optimize,
     });
+    elf.defineCMacro("__3DS__", null);
+    elf.defineCMacro("_LIBC", null);
+    elf.defineCMacro("__DYNAMIC_REENT__", null);
+    elf.defineCMacro("GETREENT_PROVIDED", null);
+    elf.defineCMacro("REENTRANT_SYSCALLS_PROVIDED", null);
+    elf.defineCMacro("__DEFAULT_UTF8__", null);
+    elf.defineCMacro("_LDBL_EQ_DBL", null); // ldbl mant dig 53, dbl mant dig 53, flt mant dig 24
+    elf.defineCMacro("_HAVE_INITFINI_ARRAY", null);
+    elf.defineCMacro("_MB_CAPABLE", null);
     const cflags = &[_][]const u8{
         "-mtp=soft",
-        "-ffunction-sections",
-        "-D__3DS__",
-
-        "-D_LIBC",
-        "-D__DYNAMIC_REENT__",
-        "-DGETREENT_PROVIDED",
-        "-DREENTRANT_SYSCALLS_PROVIDED",
-        "-D__DEFAULT_UTF8__",
-        "-D_LDBL_EQ_DBL", // ldbl mant dig 53, dbl mant dig 53, flt mant dig 24
-        "-D_HAVE_INITFINI_ARRAY",
-        "-D_MB_CAPABLE",
     };
 
     elf.addIncludePath(newlib_dep.path("newlib/libc/sys/arm"));
@@ -198,6 +196,7 @@ pub fn build(b: *std.Build) !void {
     elf.linker_script = crtls_dep.path("3dsx.ld"); // -T 3dsx.ld%s
 
     elf.link_emit_relocs = true; // --emit-relocs
+    elf.root_module.strip = false; // can't combine 'strip-all' with 'emit-relocs'
     // TODO: -d: They assign space to common symbols even if a relocatable output file is specified
     elf.link_gc_sections = true; // --gc-sections
     // TODO: --use-blx: The ‘--use-blx’ switch enables the linker to use ARM/Thumb BLX instructions (available on ARMv5t and above) in various situations.
