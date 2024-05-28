@@ -16,11 +16,11 @@
             .hash = "1220500038392c32bc26f2a74ce2d3a0aa125a9f94d879006b0a5d3945f7f91890f5",
         },
         .citro2d = .{
-            .url = "https://github.com/devkitPro/citro2d/archive/refs/tags/v1.6.0.tar.gz",
-            .hash = "12200f77489b408d10951fcfb4bb82ea132480f18b59b8d59605a281c18915d0ebc5",
+            .url = "https://github.com/devkitPro/citro2d/archive/4e415d7707fe31c2caa3bb5153da81870956b65c.tar.gz",
+            .hash = "12206423f0bf6f58752c37f384d013a9cbd86ac8f03e202e6f6a0c899f800bdbaf09",
         },
         .citro3d = .{
-            .url = "https://github.com/devkitPro/citro3d/archive/refs/tags/v1.7.1.tar.gz",
+            .url = "https://github.com/devkitPro/citro3d/archive/9f21cf7b380ce6f9e01a0420f19f0763e5443ca7.tar.gz",
             .hash = "1220b31a0367edb9f4d9ba864e3fa08a678c5037597e5a08dffb8797846facce52ba",
         },
         .@"devkitarm-crtls" = .{
@@ -41,6 +41,10 @@
         .@"3ds-examples" = .{
             .url = "https://github.com/devkitPro/3ds-examples/archive/979ab794de89f1ce30a2e307a8dc17fc4fe1d684.tar.gz",
             .hash = "1220e68d87f97d1d62dcdbeb648748d5b3fd00fc44bb7992e880ef5c3e97fc0d39cc",
+        },
+        .picasso = .{
+            .url = "https://github.com/devkitPro/picasso/archive/d522455ea59cd5cb9219c699b93eb7750039233c.tar.gz",
+            .hash = "1220999d1eb2ccf7aedfc39d10422c0701b4be28a5c2ffc95909f7e6e96869c94ecf",
         },
     },
 

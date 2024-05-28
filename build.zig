@@ -109,6 +109,7 @@ pub fn build(b: *std.Build) !void {
     const @"3dstools_dep" = b.dependency("3dstools", .{});
     const @"3dstools_cxitool_dep" = b.dependency("3dstools-cxitool", .{});
     const general_tools_dep = b.dependency("general-tools", .{});
+    const picasso_dep = b.dependency("picasso", .{});
     // elf -> .3dsx
     const tool_3dsxtool = addTool(b, @"3dstools_dep", "3dsxtool", &[_][]const u8{
         "src/3dsxtool.cpp",
@@ -144,11 +145,28 @@ pub fn build(b: *std.Build) !void {
     const bin2s_tool = addTool(b, general_tools_dep, "bin2s", &[_][]const u8{
         "bin2s.c",
     });
+    // .pica -> .shbin
+    const tool_picasso = addTool(b, picasso_dep, "picasso", &[_][]const u8{
+        "source/picasso_assembler.cpp",
+        "source/picasso_frontend.cpp",
+    });
 
     const libctru_dep = b.dependency("libctru", .{});
     const crtls_dep = b.dependency("devkitarm-crtls", .{});
     const newlib_dep = b.dependency("newlib", .{});
     const examples_dep = b.dependency("3ds-examples", .{});
+
+    // build_helper
+    const build_helper = try b.allocator.create(T3dsBuildHelper);
+    exposeArbitrary(b, "build_helper", T3dsBuildHelper, build_helper);
+    build_helper.* = .{
+        .owner = b,
+        .target = target_3ds,
+        .tool_3dsxtool = tool_3dsxtool,
+        .tool_bin2s = bin2s_tool,
+        .tool_picasso = tool_picasso,
+        .crtls_dep = crtls_dep,
+    };
 
     // libctru dependencies
     const bin2s_run_cmd = b.addRunArtifact(bin2s_tool);
@@ -184,7 +202,7 @@ pub fn build(b: *std.Build) !void {
 
         const asm_files_dir = b.addWriteFiles();
 
-        asm_os.addIncludePath(.{ .path = "src/asm_fix" });
+        asm_os.addIncludePath(b.path("src/asm_fix"));
         asm_os.step.dependOn(&asm_obj.step);
 
         const tmpdir = b.makeTempPath();
@@ -234,7 +252,7 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
     libc_includer.applyTo(&libgloss_libsysbase.root_module);
-    libgloss_libsysbase.addIncludePath(.{ .path = "src/config_fix" });
+    libgloss_libsysbase.addIncludePath(b.path("src/config_fix"));
     libgloss_libsysbase.addCSourceFiles(.{
         .root = newlib_dep.path("libgloss/libsysbase"),
         .files = libgloss_libsysbase_files,
@@ -317,24 +335,36 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
     b.installArtifact(citro3d);
-    citro3d_includer.applyTo(&citro3d.root_module);
     libc_includer.applyTo(&citro3d.root_module);
     libctru_includer.applyTo(&citro3d.root_module);
+    citro3d_includer.applyTo(&citro3d.root_module);
     citro3d.addCSourceFiles(.{
         .root = citro3d_dep.path(""),
         .files = citro3d_files,
         .flags = cflags,
     });
 
-    // 4. build the game
-    const build_helper = try b.allocator.create(T3dsBuildHelper);
-    exposeArbitrary(b, "build_helper", T3dsBuildHelper, build_helper);
-    build_helper.* = .{
+    // citro2d
+    const citro2d_dep = b.dependency("citro2d", .{});
+    const citro2d_includer = CIncluder.createCIncluder(b, .{
+        .add_include_paths = &.{
+            citro2d_dep.path("include"),
+        },
+    });
+    citro2d_includer.expose("citro2d");
+    const citro2d = b.addStaticLibrary(.{
+        .name = "citro2d",
         .target = target_3ds,
-        .tool_3dsxtool = tool_3dsxtool,
-        .crtls_dep = crtls_dep,
-    };
+        .optimize = optimize,
+    });
+    b.installArtifact(citro2d);
+    libc_includer.applyTo(&citro2d.root_module);
+    libctru_includer.applyTo(&citro2d.root_module);
+    citro3d_includer.applyTo(&citro2d.root_module);
+    citro2d_includer.applyTo(&citro2d.root_module);
+    build_helper.addFiles(&citro2d.root_module, citro2d_dep.path(""), citro2d_files);
 
+    // 4. build the game
     for (t3ds_examples) |example| {
         const example_name = example.name(b.allocator);
 
@@ -366,9 +396,13 @@ pub fn build(b: *std.Build) !void {
             libctru_includer.applyTo(&elf.root_module);
             elf.linkLibrary(libctru);
         }
+        if (example.dependencies.citro3d) {
+            citro3d_includer.applyTo(&elf.root_module);
+            elf.linkLibrary(citro3d);
+        }
         if (example.dependencies.citro2d) {
-            std.log.warn("TODO citro2d for: {s}", .{example.root_dir});
-            continue;
+            citro2d_includer.applyTo(&elf.root_module);
+            elf.linkLibrary(citro2d);
         }
 
         // elf -> 3dsx
@@ -389,8 +423,11 @@ pub fn build(b: *std.Build) !void {
 }
 
 pub const T3dsBuildHelper = struct {
+    owner: *std.Build,
     target: std.Build.ResolvedTarget,
     tool_3dsxtool: *std.Build.Step.Compile,
+    tool_bin2s: *std.Build.Step.Compile,
+    tool_picasso: *std.Build.Step.Compile,
     crtls_dep: *std.Build.Dependency,
 
     pub fn find(dep: *std.Build.Dependency, name: []const u8) *const T3dsBuildHelper {
@@ -415,6 +452,56 @@ pub const T3dsBuildHelper = struct {
         const output_3dsx = run_3dsxtool.addOutputFileArg(output_3dsx_name);
         return output_3dsx;
     }
+
+    pub const Bin2sCfg = struct {
+        sym_name: []const u8,
+        file_name: []const u8,
+    };
+    pub fn addBin2s(bh: *const T3dsBuildHelper, mod: *std.Build.Module, file: std.Build.LazyPath, cfg: Bin2sCfg) void {
+        const bin2s_run_cmd = bh.owner.addRunArtifact(bh.tool_bin2s);
+        bin2s_run_cmd.addArg("-H");
+        const h_file = bin2s_run_cmd.addOutputFileArg(bh.owner.fmt("{s}.h", .{cfg.file_name}));
+        bin2s_run_cmd.addArg("-n");
+        bin2s_run_cmd.addArg(cfg.sym_name);
+        bin2s_run_cmd.addFileArg(file);
+        const s_file = captureStdoutNamed(bin2s_run_cmd, bh.owner.fmt("{s}.s", .{cfg.file_name}));
+
+        mod.addIncludePath(h_file.dirname());
+        mod.addAssemblyFile(s_file);
+    }
+    pub fn addPica(bh: *const T3dsBuildHelper, mod: *std.Build.Module, file: std.Build.LazyPath, name: []const u8) void {
+        const picasso_run_cmd = bh.owner.addRunArtifact(bh.tool_picasso);
+        picasso_run_cmd.addArg("-o");
+        const out_file = picasso_run_cmd.addOutputFileArg(bh.owner.fmt("{s}.shbin", .{name}));
+        picasso_run_cmd.addFileArg(file);
+        bh.addBin2s(mod, out_file, .{
+            .sym_name = bh.owner.fmt("{s}_shbin", .{name}),
+            .file_name = bh.owner.fmt("{s}_shbin", .{name}),
+        });
+    }
+
+    /// in the future, this could add a custom step that does a directory scan to discover all the files
+    pub fn addFiles(bh: *const T3dsBuildHelper, mod: *std.Build.Module, files_root: std.Build.LazyPath, files: []const []const u8) void {
+        var c_source_files = std.ArrayList([]const u8).init(bh.owner.allocator);
+        defer c_source_files.deinit();
+
+        for (files) |file| {
+            if (std.mem.endsWith(u8, file, ".c")) {
+                c_source_files.append(file) catch @panic("oom");
+            } else if (std.mem.endsWith(u8, file, ".v.pica")) {
+                const filebasename = std.fs.path.basename(file);
+                bh.addPica(mod, files_root.path(bh.owner, file), filebasename[0 .. filebasename.len - ".v.pica".len]);
+            }
+        }
+
+        if (c_source_files.items.len > 0) mod.addCSourceFiles(.{
+            .root = files_root,
+            .files = c_source_files.items,
+            .flags = &.{
+                "-mtp=soft",
+            },
+        });
+    }
 };
 
 fn captureStdoutNamed(run: *std.Build.Step.Run, name: []const u8) std.Build.LazyPath {
@@ -429,13 +516,14 @@ fn captureStdoutNamed(run: *std.Build.Step.Run, name: []const u8) std.Build.Lazy
         .generated_file = .{ .step = &run.step },
     };
     run.captured_stdout = output;
-    return .{ .generated = &output.generated_file };
+    return .{ .generated = .{ .file = &output.generated_file } };
 }
 
 pub const T3dsDep = struct {
     c: bool = false,
     m: bool = false,
     ctru: bool = false,
+    citro3d: bool = false,
     citro2d: bool = false,
 };
 pub const T3dsExample = struct {
@@ -498,13 +586,14 @@ const t3ds_examples = &[_]T3dsExample{
         },
         .dependencies = .{ .c = true, .m = true, .ctru = true },
     },
-    // .{
-    //     .root_dir = "graphics/printing/system-font",
-    //     .c_source_files = &.{
-    //         "source/main.c",
-    //     },
-    //     .dependencies = .{ .c = true, .m = true, .ctru = true, .citro2d = true },
-    // },
+    .{
+        // uh oh! crashes due to ubsan. works fine in ReleaseFast.
+        .root_dir = "graphics/printing/system-font",
+        .c_source_files = &.{
+            "source/main.c",
+        },
+        .dependencies = .{ .c = true, .m = true, .ctru = true, .citro3d = true, .citro2d = true },
+    },
     .{
         .root_dir = "graphics/printing/wide-console",
         .c_source_files = &.{
@@ -1203,6 +1292,47 @@ const newlib_libc_files = &[_][]const u8{
     "search/ndbm.c",
     "search/qsort.c",
     "syscalls/sysclose.c",
+    "syscalls/sysexecve.c",
+    "syscalls/sysfcntl.c",
+    "syscalls/sysfork.c",
+    "syscalls/sysfstat.c",
+    "syscalls/sysgetentropy.c",
+    "syscalls/sysgetpid.c",
+    "syscalls/sysgettod.c",
+    "syscalls/sysisatty.c",
+    "syscalls/syskill.c",
+    "syscalls/syslink.c",
+    "syscalls/syslseek.c",
+    "syscalls/sysopen.c",
+    "syscalls/sysread.c",
+    "syscalls/syssbrk.c",
+    "syscalls/sysstat.c",
+    "syscalls/systimes.c",
+    "syscalls/sysunlink.c",
+    "syscalls/syswait.c",
+    "syscalls/syswrite.c",
+    "time/asctime.c",
+    "time/asctime_r.c",
+    "time/clock.c",
+    "time/ctime.c",
+    "time/ctime_r.c",
+    "time/difftime.c",
+    "time/gettzinfo.c",
+    "time/gmtime.c",
+    "time/gmtime_r.c",
+    "time/lcltime.c",
+    "time/lcltime_r.c",
+    "time/mktime.c",
+    "time/month_lengths.c",
+    "time/strftime.c",
+    "time/strptime.c",
+    "time/time.c",
+    "time/tzcalc_limits.c",
+    "time/tzlock.c",
+    "time/tzset.c",
+    "time/tzset_r.c",
+    "time/tzvars.c",
+    "time/wcsftime.c",
 };
 
 const libctru_s_files = &[_]struct { []const u8, []const u8 }{
@@ -1367,7 +1497,7 @@ const libctru_files = &[_][]const u8{
     "util/utf/utf8_to_utf32.c",
 };
 const citro3d_files = &[_][]const u8{
-    // makefile includes all .{c,cpp,s,*}
+    // makefile includes all .{c,cpp,s} and bin: data/**/*
     // cd ~/.cache/zig/p/1220b31a0367edb9f4d9ba864e3fa08a678c5037597e5a08dffb8797846facce52ba
     // ls source/**/*.* | copy
     "source/attribs.c",
@@ -1421,4 +1551,14 @@ const citro3d_files = &[_][]const u8{
     "source/texenv.c",
     "source/texture.c",
     "source/uniforms.c",
+};
+const citro2d_files = &[_][]const u8{
+    // makefile includes all .{c,cpp,s,pica,shlist} bin: data/**/*
+    // cd ~/.cache/zig/p/1220b31a0367edb9f4d9ba864e3fa08a678c5037597e5a08dffb8797846facce52ba
+    // ls source/**/*.* | copy
+    "source/base.c",
+    "source/font.c",
+    "source/render2d.v.pica",
+    "source/spritesheet.c",
+    "source/text.c",
 };

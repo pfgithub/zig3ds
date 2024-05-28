@@ -3,6 +3,7 @@
 - [ ] fix the crash at exit
 - [ ] fix the 'warn bss alignment' thing
 - [ ] delete & redownload newlib & libctru, then make build.zig patch them somehow
+- [ ] zig version & instructions in README
 
 # not working yet
 
