@@ -29,6 +29,56 @@ fn addTool(b: *std.Build, dep: *std.Build.Dependency, tool_name: []const u8, fil
     return exe;
 }
 
+const CIncluder = struct {
+    //! addStaticLibrary + linkLibrary() has this functionality already
+    //! however, it doesn't support define_macros, and it seems to be
+    //! designed for one per build.zig. also, it probably doesn't support
+    //! merging headers from a few different folders.
+
+    // note: we'll have to expose these with a hack
+    // https://github.com/ziglang/zig/issues/19859
+    // find some u64 to hide a pointer in and use intFromPtr/ptrFromInt
+
+    const DefineMacro = struct { []const u8, ?[]const u8 };
+    owner: *std.Build,
+    define_macros: []const DefineMacro,
+    add_include_paths: []const std.Build.LazyPath,
+
+    pub const Options = struct {
+        define_macros: []const DefineMacro = &.{},
+        add_include_paths: []const std.Build.LazyPath = &.{},
+    };
+
+    pub fn createCIncluder(b: *std.Build, options: Options) *CIncluder {
+        const ci = b.allocator.create(CIncluder) catch @panic("oom");
+        ci.* = .{
+            .owner = b,
+            .define_macros = b.allocator.dupe(DefineMacro, options.define_macros) catch @panic("oom"),
+            .add_include_paths = b.allocator.dupe(std.Build.LazyPath, options.add_include_paths) catch @panic("oom"),
+        };
+        return ci;
+    }
+
+    pub fn expose(self: *const CIncluder, name: []const u8) void {
+        const name_fmt = self.owner.fmt("__cincluder_{s}", .{name});
+        const mod = self.owner.addModule(name_fmt, .{});
+        // HACKHACKHACK
+        mod.* = undefined;
+        mod.owner = @ptrCast(@alignCast(@constCast(self)));
+    }
+    pub fn find(dep: *std.Build.Dependency, name: []const u8) *const CIncluder {
+        const name_fmt = dep.builder.fmt("__cincluder_{s}", .{name});
+        const modv = dep.module(name_fmt);
+        // HACKHACKHACK
+        return @ptrCast(@alignCast(modv.owner));
+    }
+
+    fn applyTo(self: *const CIncluder, mod: *std.Build.Module) void {
+        for (self.define_macros) |m| mod.addCMacro(m[0], m[1] orelse "1");
+        for (self.add_include_paths) |ip| mod.addIncludePath(ip);
+    }
+};
+
 pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
@@ -138,10 +188,62 @@ pub fn build(b: *std.Build) !void {
         }
     }
 
-    // 4. build the game
+    // c flags
     const cflags = &[_][]const u8{
         "-mtp=soft",
     };
+
+    // newlib
+    const newlib_include = CIncluder.createCIncluder(b, .{
+        .define_macros = &.{
+            .{ "_LIBC", null },
+            .{ "__DYNAMIC_REENT__", null },
+            .{ "GETREENT_PROVIDED", null },
+            .{ "REENTRANT_SYSCALLS_PROVIDED", null },
+            .{ "__DEFAULT_UTF8__", null },
+            .{ "_LDBL_EQ_DBL", null },
+            .{ "_HAVE_INITFINI_ARRAY", null },
+            .{ "_MB_CAPABLE", null },
+        },
+        .add_include_paths = &.{
+            newlib_dep.path("newlib/libc/sys/arm"),
+            newlib_dep.path("newlib/libc/machine/arm"),
+            newlib_dep.path("newlib/libc/include"),
+        },
+    });
+    newlib_include.expose("libc");
+
+    // libctru
+    const libctru_includer = CIncluder.createCIncluder(b, .{
+        .add_include_paths = &.{
+            libctru_dep.path("libctru/include"),
+        },
+    });
+    libctru_includer.expose("libctru");
+    const libctru = b.addStaticLibrary(.{
+        .name = "libctru",
+        .target = target_3ds,
+        .optimize = optimize,
+    });
+    {
+        newlib_include.applyTo(&libctru.root_module);
+        libctru_includer.applyTo(&libctru.root_module);
+
+        libctru.addAssemblyFile(crtls_dep.path("3dsx_crt0.s"));
+
+        libctru.addIncludePath(default_font_bin_h.dirname());
+        libctru.addAssemblyFile(c_stdout);
+
+        libctru.addObject(asm_os);
+
+        libctru.addCSourceFiles(.{
+            .root = libctru_dep.path("libctru/source"),
+            .files = libctru_files,
+            .flags = cflags,
+        });
+    }
+
+    // 4. build the game
     const elf = b.addExecutable(.{
         .name = "sample",
         .target = target_3ds,
@@ -158,18 +260,7 @@ pub fn build(b: *std.Build) !void {
         // to properly build newlib into an object file and folder of header files:
         // - we need to
 
-        elf.defineCMacro("_LIBC", null);
-        elf.defineCMacro("__DYNAMIC_REENT__", null);
-        elf.defineCMacro("GETREENT_PROVIDED", null);
-        elf.defineCMacro("REENTRANT_SYSCALLS_PROVIDED", null);
-        elf.defineCMacro("__DEFAULT_UTF8__", null);
-        elf.defineCMacro("_LDBL_EQ_DBL", null); // ldbl mant dig 53, dbl mant dig 53, flt mant dig 24
-        elf.defineCMacro("_HAVE_INITFINI_ARRAY", null);
-        elf.defineCMacro("_MB_CAPABLE", null);
-
-        elf.addIncludePath(newlib_dep.path("newlib/libc/sys/arm"));
-        elf.addIncludePath(newlib_dep.path("newlib/libc/machine/arm"));
-        elf.addIncludePath(newlib_dep.path("newlib/libc/include"));
+        newlib_include.applyTo(&elf.root_module);
 
         elf.addCSourceFiles(.{
             .root = newlib_dep.path("newlib/libc"),
@@ -200,21 +291,8 @@ pub fn build(b: *std.Build) !void {
     }
 
     // libctru
-    {
-        elf.addIncludePath(libctru_dep.path("libctru/include"));
-        elf.addAssemblyFile(crtls_dep.path("3dsx_crt0.s"));
-
-        elf.addIncludePath(default_font_bin_h.dirname());
-        elf.addAssemblyFile(c_stdout);
-
-        elf.addObject(asm_os);
-
-        elf.addCSourceFiles(.{
-            .root = libctru_dep.path("libctru/source"),
-            .files = libctru_files,
-            .flags = cflags,
-        });
-    }
+    elf.linkLibrary(libctru);
+    libctru_includer.applyTo(&elf.root_module);
 
     elf.linker_script = crtls_dep.path("3dsx.ld"); // -T 3dsx.ld%s
 
