@@ -12,8 +12,9 @@
             .hash = "1220d98ca01a4fc7e2b79dec0382183b2acc2950b854541a2561cf590e770b31a9e3",
         },
         .libctru = .{
-            .url = "https://github.com/devkitPro/libctru/archive/refs/tags/v2.3.1.tar.gz",
-            .hash = "1220500038392c32bc26f2a74ce2d3a0aa125a9f94d879006b0a5d3945f7f91890f5",
+            // patched to disable threadlocal path vars
+            .url = "https://github.com/pfgithub/libctru/archive/13e35d7f19c51c334bf575fcf80b653edc0a0abe.tar.gz",
+            .hash = "1220ad124d6ff6acde720dd91ff8028cd9992f2f3f534bfd9c47b330d6e362fe3c37",
         },
         .citro2d = .{
             .url = "https://github.com/devkitPro/citro2d/archive/4e415d7707fe31c2caa3bb5153da81870956b65c.tar.gz",
