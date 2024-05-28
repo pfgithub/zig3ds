@@ -48,9 +48,15 @@ elf.linkLibrary(zig3ds_dep.artifact("citro2d"));
   - `libgloss/libsysbase/unlink.c` defines `_unlink_r` to call `devoptab_list[dev]->unlink_r()`
   - `newlib/libc/reent/unlinkr.c` defines `_unlink_r` to call `_unlink`
 - [ ] `c++` files are supposed to be compiled with `-fno-rtti -fno-exceptions -std=gnu++11`
+- [ ] From the command line, citra's keyboard just types 'CITRA' and presses button 2 every time.
+  - Issue in `zig build run:input/software-keyboard`
+  - Works fine in citra-qt
+- [ ] Audio isn't playing in emulator?
+  - [ ] Test on device `audio/mic.3dsx`
 
 # TODO Features
 
+- [ ] Support smdh file generation
 - [ ] Support `tex3ds`. Unfortunately, it depends on imagemagick which depends on libbzip2 & libjpeg & libpng & libtiff & zlib, and imagemagick already has a huge makefile
 - [ ] Support emitting `.cia` files. This maybe requires `cxitool` and `makerom`.
 

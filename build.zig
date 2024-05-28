@@ -617,6 +617,20 @@ const T3dsDepEnum = std.meta.FieldEnum(T3dsDep);
 const ExampleTOpts = struct { gfx_mode: enum { not_set, embed, romfs } = .not_set };
 const ExampleT = struct { []const u8, []const T3dsDepEnum, ExampleTOpts };
 const t3ds_examples = &[_]ExampleT{
+    .{ "app_launch", &.{ .c, .m, .ctru }, .{} },
+
+    .{ "audio/filters", &.{ .c, .m, .ctru }, .{} },
+    .{ "audio/mic", &.{ .c, .m, .ctru }, .{} },
+    // .{ "audio/modplug-decoding", &.{ .c, .m, .ctru }, .{} }, // romfs
+    // .{ "audio/ogg-vorbis-decoding", &.{ .c, .m, .ctru }, .{} }, // romfs & -lvorbisidec
+    // .{ "audio/opus-decoding", &.{ .c, .m, .ctru }, .{} }, // romfs & -lopusfile
+    .{ "audio/streaming", &.{ .c, .m, .ctru }, .{} },
+
+    // .{ "camera/image", &.{ .c, .m, .ctru }, .{} }, // have xml files?
+    // .{ "camera/video", &.{ .c, .m, .ctru }, .{} }, // also missing setjmp/longjmp & 'clearScreen'
+    .{ "get_system_language", &.{ .c, .m, .ctru }, .{} },
+
+    // .{ "graphics/bitmap/24bit-color", &.{ .c, .m, .ctru, .citro3d, .citro2d }, .{ .gfx_include_png = true } },
     .{ "graphics/gpu/2d_shapes", &.{ .c, .m, .ctru, .citro3d, .citro2d }, .{} },
     .{ "graphics/gpu/both_screens", &.{ .c, .m, .ctru, .citro3d }, .{} },
     .{ "graphics/gpu/composite_scene", &.{ .c, .m, .ctru, .citro3d, .citro2d }, .{} },
@@ -644,6 +658,36 @@ const t3ds_examples = &[_]ExampleT{
     .{ "graphics/printing/multiple-windows-text", &.{ .c, .m, .ctru }, .{} },
     .{ "graphics/printing/system-font", &.{ .c, .m, .ctru, .citro3d, .citro2d }, .{} },
     .{ "graphics/printing/wide-console", &.{ .c, .m, .ctru }, .{} },
+
+    .{ "input/read-controls", &.{ .c, .m, .ctru }, .{} },
+    .{ "input/software-keyboard", &.{ .c, .m, .ctru }, .{} },
+    .{ "input/touch-screen", &.{ .c, .m, .ctru }, .{} },
+
+    .{ "libapplet_launch", &.{ .c, .m, .ctru }, .{} },
+    .{ "mii_selector", &.{ .c, .m, .ctru }, .{} },
+    // .{ "mvd", &.{ .c, .m, .ctru }, .{} }, // new 3ds only & needs special build stuff
+
+    .{ "network/3dslink-demo", &.{ .c, .m, .ctru }, .{} },
+    .{ "network/boss", &.{ .c, .m, .ctru }, .{} },
+    .{ "network/http", &.{ .c, .m, .ctru }, .{} },
+    .{ "network/http_post", &.{ .c, .m, .ctru }, .{} },
+    .{ "network/sockets", &.{ .c, .m, .ctru }, .{} },
+    .{ "network/sslc", &.{ .c, .m, .ctru }, .{} },
+    .{ "network/uds", &.{ .c, .m, .ctru }, .{} },
+
+    .{ "nfc", &.{ .c, .m, .ctru }, .{} },
+    // .{ "physics/box2d", &.{ .c, .m, .ctru, .box2d }, .{} }, // needs box2d
+    .{ "qtm", &.{ .c, .m, .ctru }, .{} },
+    // .{ "romfs", &.{ .c, .m, .ctru }, .{} }, // needs build romfs support
+    .{ "sdmc", &.{ .c, .m, .ctru }, .{} },
+
+    .{ "templates/application", &.{ .c, .m, .ctru }, .{} },
+    // .{ "templates/library", &.{ .c, .m, .ctru }, .{} }, // this is a template for building a library
+
+    .{ "threads/event", &.{ .c, .m, .ctru }, .{} },
+    .{ "threads/thread-basic", &.{ .c, .m, .ctru }, .{} },
+
+    .{ "time/rtc", &.{ .c, .m, .ctru }, .{} },
 };
 
 const libgloss_libsysbase_files = &[_][]const u8{
