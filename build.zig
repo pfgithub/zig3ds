@@ -331,6 +331,34 @@ pub fn build(b: *std.Build) !void {
     run_step_cmdl.dependOn(&run_step.step);
 }
 
+pub const T3dsBuilder = struct {
+    owner: *std.Build,
+    elf: *std.Build.Step.Compile,
+    output_3dsx: std.Build.LazyPath,
+
+    pub fn create(b: *std.Build, t3ds_dep: *std.Build.Dependency) *T3dsBuilder {
+        const target_3ds = null;
+        const optimize = null;
+        const elf = b.addExecutable(.{
+            .name = "sample",
+            .target = target_3ds,
+            .optimize = optimize,
+        });
+        elf.defineCMacro("__3DS__", null);
+
+        const artifact_3dsxtool = t3ds_dep.artifact("3dsxtool");
+        _ = artifact_3dsxtool;
+
+        const res = b.create(T3dsBuilder) catch @panic("oom");
+        res.* = .{
+            .owner = b,
+            .elf = elf,
+            .output_3dsx = null,
+        };
+        return res;
+    }
+};
+
 fn captureStdoutNamed(run: *std.Build.Step.Run, name: []const u8) std.Build.LazyPath {
     std.debug.assert(run.stdio != .inherit);
 
