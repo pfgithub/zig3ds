@@ -164,27 +164,22 @@ pub fn build(b: *std.Build) !void {
         asm_obj.addArg("-o");
         _ = asm_obj.addOutputFileArg("3ds_asm_files.o");
 
+        const asm_files_dir = b.addWriteFiles();
+
         asm_os.addIncludePath(.{ .path = "src/asm_fix" });
         asm_os.step.dependOn(&asm_obj.step);
-        const install_dir = std.Build.InstallDir{ .custom = "tmp" };
 
         const tmpdir = b.makeTempPath();
         var tmpdir_dir = try std.fs.cwd().openDir(tmpdir, .{});
         defer tmpdir_dir.close();
         for (libctru_s_files) |file| {
-            const fpath = libctru_dep.path(b.fmt("libctru/source/{s}", .{file[0]}));
+            const src_path = libctru_dep.path(b.fmt("libctru/source/{s}", .{file[0]}));
+            const dst_path = file[1];
+            const asm_file_lazypath = asm_files_dir.addCopyFile(src_path, dst_path);
 
-            const install_file = b.addInstallFileWithDir(fpath, install_dir, file[1]);
+            asm_os.addAssemblyFile(asm_file_lazypath);
 
-            asm_os.addAssemblyFile(.{
-                .cwd_relative = b.getInstallPath(install_file.dir, install_file.dest_rel_path),
-            });
-            asm_os.step.dependOn(&install_file.step);
-
-            asm_obj.addFileArg(.{
-                .cwd_relative = b.getInstallPath(install_file.dir, install_file.dest_rel_path),
-            });
-            asm_obj.step.dependOn(&install_file.step);
+            asm_obj.addFileArg(asm_file_lazypath);
         }
     }
 
