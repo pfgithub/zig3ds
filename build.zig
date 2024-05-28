@@ -306,38 +306,58 @@ pub fn build(b: *std.Build) !void {
         .crtls_dep = crtls_dep,
     };
 
-    const elf = b.addExecutable(.{
-        .name = "sample",
-        .target = target_3ds,
-        .optimize = optimize,
-    });
-    elf.addCSourceFile(.{
-        .file = examples_dep.path("graphics/printing/hello-world/source/main.c"),
-        .flags = cflags,
-    });
-    build_helper.link(elf);
+    for (t3ds_examples) |example| {
+        const example_name = example.name(b.allocator);
 
-    libc_includer.applyTo(&elf.root_module);
-    libctru_includer.applyTo(&elf.root_module);
-    elf.linkLibrary(libc);
-    elf.linkLibrary(libgloss_libsysbase);
-    elf.linkLibrary(libm);
-    elf.linkLibrary(libctru);
+        const elf = b.addExecutable(.{
+            .name = example_name,
+            .target = target_3ds,
+            .optimize = optimize,
+        });
+        build_helper.link(elf);
+        elf.addCSourceFiles(.{
+            .root = examples_dep.path(example.root_dir),
+            .files = example.c_source_files,
+            .flags = cflags,
+        });
 
-    // elf -> 3dsx
-    const output_3dsx = build_helper.to3dsx(elf);
+        if (example.ttf_source_files.len > 0) {
+            std.log.warn("TODO ttf_source_files for: {s}", .{example.root_dir});
+            continue;
+        }
 
-    const output_3dsx_install = b.addInstallFileWithDir(output_3dsx, .bin, "sample.3dsx");
-    const output_3dsx_path = b.getInstallPath(.bin, "sample.3dsx");
-    b.getInstallStep().dependOn(&output_3dsx_install.step);
+        if (example.dependencies.c) {
+            libc_includer.applyTo(&elf.root_module);
+            elf.linkLibrary(libc);
+            elf.linkLibrary(libgloss_libsysbase);
+        }
+        if (example.dependencies.m) {
+            elf.linkLibrary(libm);
+        }
+        if (example.dependencies.ctru) {
+            libctru_includer.applyTo(&elf.root_module);
+            elf.linkLibrary(libctru);
+        }
+        if (example.dependencies.citro2d) {
+            std.log.warn("TODO citro2d for: {s}", .{example.root_dir});
+            continue;
+        }
 
-    // elf_to_3dsx
-    const run_step = std.Build.Step.Run.create(b, b.fmt("run", .{}));
-    run_step.addArg("citra");
-    run_step.addArg(output_3dsx_path);
-    run_step.step.dependOn(b.getInstallStep());
-    const run_step_cmdl = b.step("run", "Run the app");
-    run_step_cmdl.dependOn(&run_step.step);
+        // elf -> 3dsx
+        const output_3dsx = build_helper.to3dsx(elf);
+
+        const output_3dsx_install = b.addInstallFileWithDir(output_3dsx, .bin, b.fmt("{s}.3dsx", .{example_name}));
+        const output_3dsx_path = b.getInstallPath(.bin, b.fmt("{s}.3dsx", .{example_name}));
+        b.getInstallStep().dependOn(&output_3dsx_install.step);
+
+        // elf_to_3dsx
+        const run_step = std.Build.Step.Run.create(b, b.fmt("citra run:{s}", .{example_name}));
+        run_step.addArg("citra");
+        run_step.addArg(output_3dsx_path);
+        run_step.step.dependOn(b.getInstallStep());
+        const run_step_cmdl = b.step(b.fmt("run:{s}", .{example.root_dir}), b.fmt("Run {s}", .{example.root_dir}));
+        run_step_cmdl.dependOn(&run_step.step);
+    }
 }
 
 pub const T3dsBuildHelper = struct {
@@ -379,6 +399,88 @@ fn captureStdoutNamed(run: *std.Build.Step.Run, name: []const u8) std.Build.Lazy
     run.captured_stdout = output;
     return .{ .generated = &output.generated_file };
 }
+
+pub const T3dsDep = struct {
+    c: bool = false,
+    m: bool = false,
+    ctru: bool = false,
+    citro2d: bool = false,
+};
+pub const T3dsExample = struct {
+    root_dir: []const u8,
+    c_source_files: []const []const u8 = &.{},
+    ttf_source_files: []const []const u8 = &.{},
+    dependencies: T3dsDep,
+
+    pub fn name(self: *const T3dsExample, alloc: std.mem.Allocator) []const u8 {
+        var res_al = std.ArrayList(u8).init(alloc);
+        defer res_al.deinit();
+
+        for (self.root_dir) |char| {
+            switch (char) {
+                'A'...'Z', 'a'...'z', '0'...'9', '-', '_' => res_al.append(char) catch @panic("oom"),
+                '/' => res_al.appendSlice("__") catch @panic("oom"),
+                else => res_al.append('_') catch @panic("oom"),
+            }
+        }
+
+        return res_al.toOwnedSlice() catch @panic("oom");
+    }
+};
+const t3ds_examples = &[_]T3dsExample{
+    .{
+        .root_dir = "graphics/printing/both-screen-text",
+        .c_source_files = &.{
+            "source/main.c",
+        },
+        .dependencies = .{ .c = true, .m = true, .ctru = true },
+    },
+    .{
+        .root_dir = "graphics/printing/colored-text",
+        .c_source_files = &.{
+            "source/main.c",
+        },
+        .dependencies = .{ .c = true, .m = true, .ctru = true },
+    },
+    // .{
+    //     .root_dir = "graphics/printing/custom-font",
+    //     .c_source_files = &.{
+    //         "source/main.c",
+    //     },
+    //     .ttf_source_files = &.{
+    //         "gfx/liberationitalic.ttf",
+    //     },
+    //     .dependencies = .{ .c = true, .m = true, .ctru = true },
+    // },
+    .{
+        .root_dir = "graphics/printing/hello-world",
+        .c_source_files = &.{
+            "source/main.c",
+        },
+        .dependencies = .{ .c = true, .m = true, .ctru = true },
+    },
+    .{
+        .root_dir = "graphics/printing/multiple-windows-text",
+        .c_source_files = &.{
+            "source/main.c",
+        },
+        .dependencies = .{ .c = true, .m = true, .ctru = true },
+    },
+    // .{
+    //     .root_dir = "graphics/printing/system-font",
+    //     .c_source_files = &.{
+    //         "source/main.c",
+    //     },
+    //     .dependencies = .{ .c = true, .m = true, .ctru = true, .citro2d = true },
+    // },
+    .{
+        .root_dir = "graphics/printing/wide-console",
+        .c_source_files = &.{
+            "source/main.c",
+        },
+        .dependencies = .{ .c = true, .m = true, .ctru = true },
+    },
+};
 
 const libgloss_libsysbase_files = &[_][]const u8{
     "_exit.c",
