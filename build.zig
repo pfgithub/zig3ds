@@ -110,6 +110,7 @@ pub fn build(b: *std.Build) !void {
     const @"3dstools_cxitool_dep" = b.dependency("3dstools-cxitool", .{});
     const general_tools_dep = b.dependency("general-tools", .{});
     const picasso_dep = b.dependency("picasso", .{});
+    const tex3ds_dep = b.dependency("tex3ds", .{});
     // elf -> .3dsx
     const tool_3dsxtool = addTool(b, @"3dstools_dep", "3dsxtool", &[_][]const u8{
         "src/3dsxtool.cpp",
@@ -150,6 +151,15 @@ pub fn build(b: *std.Build) !void {
         "source/picasso_assembler.cpp",
         "source/picasso_frontend.cpp",
     });
+    // .t3s -> .t3x, .h, .d
+    const tool_tex3ds = b.addExecutable(.{
+        // depends on imagemagick, yikes!
+        .name = "tex3ds",
+        .target = b.resolveTargetQuery(.{}),
+        .optimize = .ReleaseSafe,
+        .root_source_file = b.path("src/tex3ds_stub.zig"),
+    });
+    _ = tex3ds_dep;
 
     const libctru_dep = b.dependency("libctru", .{});
     const crtls_dep = b.dependency("devkitarm-crtls", .{});
@@ -165,10 +175,12 @@ pub fn build(b: *std.Build) !void {
         .tool_3dsxtool = tool_3dsxtool,
         .tool_bin2s = bin2s_tool,
         .tool_picasso = tool_picasso,
+        .tool_tex3ds = tool_tex3ds,
         .crtls_dep = crtls_dep,
         .cflags = b.dupeStrings(&.{
             "-mtp=soft",
             "-fno-sanitize=undefined", // :/
+            "-Wno-return-type", // :/ :/ `newlib/libc/sys/arm/sys/lock.h:51:1`
         }),
     };
 
@@ -397,6 +409,7 @@ pub const T3dsBuildHelper = struct {
     tool_3dsxtool: *std.Build.Step.Compile,
     tool_bin2s: *std.Build.Step.Compile,
     tool_picasso: *std.Build.Step.Compile,
+    tool_tex3ds: *std.Build.Step.Compile,
     crtls_dep: *std.Build.Dependency,
     cflags: []const []const u8,
 
@@ -439,15 +452,32 @@ pub const T3dsBuildHelper = struct {
         mod.addIncludePath(h_file.dirname());
         mod.addAssemblyFile(s_file);
     }
-    pub fn addPica(bh: *const T3dsBuildHelper, mod: *std.Build.Module, file: std.Build.LazyPath, name: []const u8) void {
+    pub fn addPica(bh: *const T3dsBuildHelper, mod: *std.Build.Module, v_pica: std.Build.LazyPath, g_pica: ?std.Build.LazyPath, name: []const u8) void {
         const picasso_run_cmd = bh.owner.addRunArtifact(bh.tool_picasso);
         picasso_run_cmd.addArg("-o");
         const out_file = picasso_run_cmd.addOutputFileArg(bh.owner.fmt("{s}.shbin", .{name}));
-        picasso_run_cmd.addFileArg(file);
+        picasso_run_cmd.addFileArg(v_pica);
+        if (g_pica) |gp| picasso_run_cmd.addFileArg(gp);
         bh.addBin2s(mod, out_file, .{
             .sym_name = bh.owner.fmt("{s}_shbin", .{name}),
             .file_name = bh.owner.fmt("{s}_shbin", .{name}),
         });
+    }
+    pub fn addTex3ds(bh: *const T3dsBuildHelper, mod: *std.Build.Module, file: std.Build.LazyPath, name: []const u8) void {
+        const tex3ds_run_cmd = bh.owner.addRunArtifact(bh.tool_tex3ds);
+        tex3ds_run_cmd.addArg("-i");
+        tex3ds_run_cmd.addFileArg(file);
+        tex3ds_run_cmd.addArg("-H");
+        const out_file_h = tex3ds_run_cmd.addOutputFileArg(bh.owner.fmt("{s}.h", .{name}));
+        tex3ds_run_cmd.addArg("-d");
+        _ = tex3ds_run_cmd.addDepFileOutputArg(bh.owner.fmt("{s}.d", .{name}));
+        tex3ds_run_cmd.addArg("-o");
+        const out_file_t3x = tex3ds_run_cmd.addOutputFileArg(bh.owner.fmt("{s}.t3x", .{name}));
+        bh.addBin2s(mod, out_file_t3x, .{
+            .sym_name = bh.owner.fmt("{s}_t3x", .{name}),
+            .file_name = bh.owner.fmt("{s}_t3x", .{name}),
+        });
+        mod.addIncludePath(out_file_h.dirname());
     }
 
     fn dotToUnderscore(str: []const u8, alloc: std.mem.Allocator) []const u8 {
@@ -465,14 +495,24 @@ pub const T3dsBuildHelper = struct {
     pub fn addDir(bh: *const T3dsBuildHelper, mod: *std.Build.Module, dir: std.Build.LazyPath) void {
         std.debug.assert(dir == .dependency);
 
-        const data_dir = dir.path(bh.owner, "data");
         const source_dir = dir.path(bh.owner, "source");
+        const data_dir = dir.path(bh.owner, "data");
+        const include_dir = dir.path(bh.owner, "include");
+        const gfx_dir = dir.path(bh.owner, "gfx");
+        const romfs_dir = dir.path(bh.owner, "romfs");
 
-        const data_files = readAll(bh.owner.allocator, data_dir.getPath(bh.owner));
         const source_files = readAll(bh.owner.allocator, source_dir.getPath(bh.owner));
+        const data_files = readAll(bh.owner.allocator, data_dir.getPath(bh.owner));
+        const gfx_files = readAll(bh.owner.allocator, gfx_dir.getPath(bh.owner));
+        const romfs_files = readAll(bh.owner.allocator, romfs_dir.getPath(bh.owner));
 
-        bh.addDataFiles(mod, data_dir, data_files);
+        if (gfx_files.len > 0) std.debug.panic("TODO gfx_files for: {s} (requires tex3ds)", .{dir.getPath(bh.owner)});
+        if (romfs_files.len > 0) std.debug.panic("TODO romfs files for: {s}", .{dir.getPath(bh.owner)});
+
         bh.addFiles(mod, source_dir, source_files);
+        bh.addDataFiles(mod, data_dir, data_files);
+        bh.addGraphicsFiles(mod, gfx_dir, gfx_files);
+        mod.addIncludePath(include_dir);
     }
     fn readAll(alloc: std.mem.Allocator, path: []const u8) []const []const u8 {
         var dir_target = std.fs.cwd().openDir(path, .{ .iterate = true }) catch return &.{};
@@ -493,6 +533,20 @@ pub const T3dsBuildHelper = struct {
         return res_paths.toOwnedSlice() catch @panic("oom");
     }
 
+    // https://github.com/devkitPro/devkitarm-rules/blob/master/3ds_rules
+
+    pub fn addGraphicsFiles(bh: *const T3dsBuildHelper, mod: *std.Build.Module, files_root: std.Build.LazyPath, files: []const []const u8) void {
+        for (files) |file| {
+            if (std.mem.endsWith(u8, file, ".t3s")) {
+                const filebasename = std.fs.path.basename(file);
+                bh.addTex3ds(mod, files_root.path(bh.owner, file), filebasename[0 .. filebasename.len - ".t3s".len]);
+            } else if (std.mem.endsWith(u8, file, ".png")) {
+                // ignored
+            } else {
+                std.debug.panic("TODO support graphics file: {s}", .{file});
+            }
+        }
+    }
     pub fn addDataFiles(bh: *const T3dsBuildHelper, mod: *std.Build.Module, files_root: std.Build.LazyPath, files: []const []const u8) void {
         for (files) |file| {
             bh.addBin2s(mod, files_root.path(bh.owner, file), .{
@@ -511,12 +565,26 @@ pub const T3dsBuildHelper = struct {
             if (std.mem.endsWith(u8, file, ".c") or std.mem.endsWith(u8, file, ".cpp")) {
                 c_source_files.append(file) catch @panic("oom");
             } else if (std.mem.endsWith(u8, file, ".v.pica")) {
-                const filebasename = std.fs.path.basename(file);
-                bh.addPica(mod, files_root.path(bh.owner, file), filebasename[0 .. filebasename.len - ".v.pica".len]);
+                // unfortunately, we have to check if there is an adjacent `.g.pica` file to
+                // call picasso with both
+
+                const v_pica = files_root.path(bh.owner, file);
+                const filebasename = bh.owner.dupe(std.fs.path.basename(file));
+                const fileflatname = filebasename[0 .. filebasename.len - ".v.pica".len];
+                const g_pica_lazypath = v_pica.dirname().path(bh.owner, bh.owner.fmt("{s}.g.pica", .{fileflatname}));
+                std.debug.assert(files_root == .dependency);
+                const g_pica_file_path = g_pica_lazypath.getPath(bh.owner);
+                const g_pica: ?std.Build.LazyPath = if (std.fs.accessAbsolute(g_pica_file_path, .{})) |_| blk: {
+                    // @panic("has .g.pica file");
+                    break :blk g_pica_lazypath;
+                } else |_| null;
+                bh.addPica(mod, v_pica, g_pica, fileflatname);
             } else if (std.mem.endsWith(u8, file, ".h")) {
                 // nothing to do
             } else if (std.mem.endsWith(u8, file, ".s")) {
                 // .s is ignored and must be handled seperately
+            } else if (std.mem.endsWith(u8, file, ".g.pica")) {
+                // handled in .v.pica
             } else {
                 std.debug.panic("TODO ext: `{s}`", .{file});
             }
@@ -587,15 +655,36 @@ pub const T3dsExample = struct {
     }
 };
 const T3dsDepEnum = std.meta.FieldEnum(T3dsDep);
-const ExampleT = struct { []const u8, []const T3dsDepEnum };
+const ExampleTOpts = struct { gfx_mode: enum { not_set, embed, romfs } = .not_set };
+const ExampleT = struct { []const u8, []const T3dsDepEnum, ExampleTOpts };
 const t3ds_examples = &[_]ExampleT{
-    .{ "graphics/printing/both-screen-text", &.{ .c, .m, .ctru } },
-    .{ "graphics/printing/colored-text", &.{ .c, .m, .ctru } },
-    .{ "graphics/printing/custom-font", &.{ .c, .m, .ctru, .citro3d, .citro2d } },
-    .{ "graphics/printing/hello-world", &.{ .c, .m, .ctru } },
-    .{ "graphics/printing/multiple-windows-text", &.{ .c, .m, .ctru } },
-    .{ "graphics/printing/system-font", &.{ .c, .m, .ctru, .citro3d, .citro2d } },
-    .{ "graphics/printing/wide-console", &.{ .c, .m, .ctru } },
+    .{ "graphics/gpu/2d_shapes", &.{ .c, .m, .ctru, .citro3d, .citro2d }, .{} },
+    .{ "graphics/gpu/both_screens", &.{ .c, .m, .ctru, .citro3d }, .{} },
+    .{ "graphics/gpu/composite_scene", &.{ .c, .m, .ctru, .citro3d, .citro2d }, .{} },
+    // .{ "graphics/gpu/cubemap", &.{ .c, .m, .ctru, .citro3d }, .{} }, // requires tex3ds
+    .{ "graphics/gpu/fragment_light", &.{ .c, .m, .ctru, .citro3d }, .{} },
+    .{ "graphics/gpu/geoshader", &.{ .c, .m, .ctru, .citro3d }, .{} },
+    // .{ "graphics/gpu/gpusprites", &.{ .c, .m, .ctru, .citro3d }, .{} }, // requires tex3ds
+    .{ "graphics/gpu/immediate", &.{ .c, .m, .ctru, .citro3d }, .{} },
+    .{ "graphics/gpu/lenny", &.{ .c, .m, .ctru, .citro3d }, .{} },
+    .{ "graphics/gpu/loop_subdivision", &.{ .c, .m, .ctru, .citro3d }, .{} },
+    // .{ "graphics/gpu/mipmap_fog", &.{ .c, .m, .ctru, .citro3d }, .{} }, // requires tex3ds
+    .{ "graphics/gpu/multiple_buf", &.{ .c, .m, .ctru, .citro3d }, .{} },
+    // .{ "graphics/gpu/normal_mapping", &.{ .c, .m, .ctru, .citro3d }, .{} }, // requires tex3ds
+    .{ "graphics/gpu/particles", &.{ .c, .m, .ctru, .citro3d }, .{} },
+    .{ "graphics/gpu/proctex", &.{ .c, .m, .ctru, .citro3d }, .{} },
+    .{ "graphics/gpu/simple_tri", &.{ .c, .m, .ctru, .citro3d }, .{} },
+    // .{ "graphics/gpu/stereoscopic_2d", &.{ .c, .m, .ctru, .citro3d, .citro2d }, .{} }, // requires tex3ds
+    // .{ "graphics/gpu/textured_cube", &.{ .c, .m, .ctru, .citro3d }, .{} }, // requires tex3ds
+    .{ "graphics/gpu/toon_shading", &.{ .c, .m, .ctru, .citro3d }, .{} },
+    .{ "graphics/gpu/wide_mode_3d", &.{ .c, .m, .ctru, .citro3d }, .{} },
+    .{ "graphics/printing/both-screen-text", &.{ .c, .m, .ctru }, .{} },
+    .{ "graphics/printing/colored-text", &.{ .c, .m, .ctru }, .{} },
+    // .{ "graphics/printing/custom-font", &.{ .c, .m, .ctru, .citro3d, .citro2d }, .{ .gfx_mode = .romfs } }, // requires tex3ds
+    .{ "graphics/printing/hello-world", &.{ .c, .m, .ctru }, .{} },
+    .{ "graphics/printing/multiple-windows-text", &.{ .c, .m, .ctru }, .{} },
+    .{ "graphics/printing/system-font", &.{ .c, .m, .ctru, .citro3d, .citro2d }, .{} },
+    .{ "graphics/printing/wide-console", &.{ .c, .m, .ctru }, .{} },
 };
 
 const libgloss_libsysbase_files = &[_][]const u8{

@@ -47,6 +47,10 @@
             .url = "https://github.com/devkitPro/picasso/archive/d522455ea59cd5cb9219c699b93eb7750039233c.tar.gz",
             .hash = "1220999d1eb2ccf7aedfc39d10422c0701b4be28a5c2ffc95909f7e6e96869c94ecf",
         },
+        .tex3ds = .{
+            .url = "https://github.com/devkitPro/tex3ds/archive/37220c696e873812df41af62d1db0b20c66661fe.tar.gz",
+            .hash = "1220391bbe4059e50d59a9610770a5730f41e319fb3d2815b4d42197eac5078cbeaa",
+        },
     },
 
     .paths = .{

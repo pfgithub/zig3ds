@@ -51,6 +51,7 @@ elf.linkLibrary(zig3ds_dep.artifact("citro2d"));
 
 # TODO Features
 
+- [ ] Support `tex3ds`. Unfortunately, it depends on imagemagick which depends on libbzip2 & libjpeg & libpng & libtiff & zlib, and imagemagick already has a huge makefile
 - [ ] Support emitting `.cia` files. This maybe requires `cxitool` and `makerom`.
 
 # Alternatives
