@@ -4,6 +4,10 @@
 
     .dependencies = .{
         .@"3dstools" = .{
+            .url = "https://github.com/devkitPro/3dstools/archive/718d6f2330dbef9dd5726573392425dcbd451677.tar.gz",
+            .hash = "1220139a9f812dd07333eae260dbc72501955a8a817330452964c539ecdc4b4cfdae",
+        },
+        .@"3dstools-cxitool" = .{
             .url = "https://github.com/devkitPro/3dstools/archive/26a73b75d37db9c5be2e6ea172ddfc0c6f278bea.tar.gz",
             .hash = "1220d98ca01a4fc7e2b79dec0382183b2acc2950b854541a2561cf590e770b31a9e3",
         },

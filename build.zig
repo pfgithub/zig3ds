@@ -41,14 +41,15 @@ pub fn build(b: *std.Build) !void {
 
     // 1. we need 3dstools
     const @"3dstools_dep" = b.dependency("3dstools", .{});
+    const @"3dstools_cxitool_dep" = b.dependency("3dstools-cxitool", .{});
     const general_tools_dep = b.dependency("general-tools", .{});
     // elf -> .3dsx
-    _ = addTool(b, @"3dstools_dep", "3dsxtool", &[_][]const u8{
+    const tool_3dsxtool = addTool(b, @"3dstools_dep", "3dsxtool", &[_][]const u8{
         "src/3dsxtool.cpp",
         "src/romfs.cpp",
     });
     // .3dsx -> .cia
-    _ = addTool(b, @"3dstools_dep", "cxitool", &[_][]const u8{
+    _ = addTool(b, @"3dstools_cxitool_dep", "cxitool", &[_][]const u8{
         "src/cxitool.cpp",
         "src/CxiBuilder.cpp",
         "src/CxiSettings.cpp",
@@ -212,6 +213,24 @@ pub fn build(b: *std.Build) !void {
     // TODO: --use-blx: The ‘--use-blx’ switch enables the linker to use ARM/Thumb BLX instructions (available on ARMv5t and above) in various situations.
 
     b.installArtifact(elf);
+
+    // elf -> 3dsx
+    const output_3dsx_name = b.fmt("{s}.3dsx", .{elf.name});
+    const run_3dsxtool = b.addRunArtifact(tool_3dsxtool);
+    run_3dsxtool.addFileArg(elf.getEmittedBin());
+    const output_3dsx = run_3dsxtool.addOutputFileArg(output_3dsx_name);
+
+    const output_3dsx_install = b.addInstallFileWithDir(output_3dsx, .bin, output_3dsx_name);
+    const output_3dsx_path = b.getInstallPath(.bin, output_3dsx_name);
+    b.getInstallStep().dependOn(&output_3dsx_install.step);
+    // elf_to_3dsx
+
+    const run_step = std.Build.Step.Run.create(b, b.fmt("run", .{}));
+    run_step.addArg("citra");
+    run_step.addArg(output_3dsx_path);
+    run_step.step.dependOn(b.getInstallStep());
+    const run_step_cmdl = b.step("run", "Run the app");
+    run_step_cmdl.dependOn(&run_step.step);
 
     // devkitpro gcc:
     // specs specifies:
