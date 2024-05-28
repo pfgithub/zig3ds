@@ -166,6 +166,10 @@ pub fn build(b: *std.Build) !void {
         .tool_bin2s = bin2s_tool,
         .tool_picasso = tool_picasso,
         .crtls_dep = crtls_dep,
+        .cflags = b.dupeStrings(&.{
+            "-mtp=soft",
+            "-fno-sanitize=undefined", // :/
+        }),
     };
 
     // libctru dependencies
@@ -219,11 +223,6 @@ pub fn build(b: *std.Build) !void {
         }
     }
 
-    // c flags
-    const cflags = &[_][]const u8{
-        "-mtp=soft",
-    };
-
     // newlib
     const libc_includer = CIncluder.createCIncluder(b, .{
         .define_macros = &.{
@@ -253,12 +252,11 @@ pub fn build(b: *std.Build) !void {
     });
     libc_includer.applyTo(&libgloss_libsysbase.root_module);
     libgloss_libsysbase.addIncludePath(b.path("src/config_fix"));
+    libgloss_libsysbase.defineCMacro("_BUILDING_LIBSYSBASE", null);
     libgloss_libsysbase.addCSourceFiles(.{
         .root = newlib_dep.path("libgloss/libsysbase"),
         .files = libgloss_libsysbase_files,
-        .flags = cflags ++ &[_][]const u8{
-            "-D_BUILDING_LIBSYSBASE",
-        },
+        .flags = build_helper.cflags,
     });
 
     // newlib (libc)
@@ -271,7 +269,7 @@ pub fn build(b: *std.Build) !void {
     libc.addCSourceFiles(.{
         .root = newlib_dep.path("newlib/libc"),
         .files = newlib_libc_files,
-        .flags = cflags,
+        .flags = build_helper.cflags,
     });
     libc.linkLibrary(libgloss_libsysbase);
     b.installArtifact(libc);
@@ -286,7 +284,7 @@ pub fn build(b: *std.Build) !void {
     libm.addCSourceFiles(.{
         .root = newlib_dep.path("newlib/libm"),
         .files = newlib_libm_files,
-        .flags = cflags,
+        .flags = build_helper.cflags,
     });
     b.installArtifact(libm);
 
@@ -317,7 +315,7 @@ pub fn build(b: *std.Build) !void {
         libctru.addCSourceFiles(.{
             .root = libctru_dep.path("libctru/source"),
             .files = libctru_files,
-            .flags = cflags,
+            .flags = build_helper.cflags,
         });
     }
 
@@ -341,7 +339,7 @@ pub fn build(b: *std.Build) !void {
     citro3d.addCSourceFiles(.{
         .root = citro3d_dep.path(""),
         .files = citro3d_files,
-        .flags = cflags,
+        .flags = build_helper.cflags,
     });
 
     // citro2d
@@ -377,7 +375,7 @@ pub fn build(b: *std.Build) !void {
         elf.addCSourceFiles(.{
             .root = examples_dep.path(example.root_dir),
             .files = example.c_source_files,
-            .flags = cflags,
+            .flags = build_helper.cflags,
         });
 
         if (example.ttf_source_files.len > 0) {
@@ -429,6 +427,7 @@ pub const T3dsBuildHelper = struct {
     tool_bin2s: *std.Build.Step.Compile,
     tool_picasso: *std.Build.Step.Compile,
     crtls_dep: *std.Build.Dependency,
+    cflags: []const []const u8,
 
     pub fn find(dep: *std.Build.Dependency, name: []const u8) *const T3dsBuildHelper {
         return findArbitrary(dep, T3dsBuildHelper, name);
@@ -497,9 +496,7 @@ pub const T3dsBuildHelper = struct {
         if (c_source_files.items.len > 0) mod.addCSourceFiles(.{
             .root = files_root,
             .files = c_source_files.items,
-            .flags = &.{
-                "-mtp=soft",
-            },
+            .flags = bh.cflags,
         });
     }
 };

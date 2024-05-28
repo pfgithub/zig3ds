@@ -17,8 +17,8 @@ pub fn build(b: *std.Build) !void {
     build_helper.link(elf);
 
     elf.addCSourceFile(.{
-        .file = .{ .path = "src/main.c" },
-        .flags = &.{},
+        .file = b.path("src/main.c"),
+        .flags = build_helper.cflags,
     });
 
     libc_includer.applyTo(&elf.root_module);
