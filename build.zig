@@ -312,8 +312,6 @@ pub fn build(b: *std.Build) !void {
     // TODO: --use-blx: The ‘--use-blx’ switch enables the linker to use ARM/Thumb BLX instructions (available on ARMv5t and above) in various situations.
     // skipped gc-sections because it seems to have no effect on ReleaseSmall builds
 
-    b.installArtifact(elf);
-
     // elf -> 3dsx
     const output_3dsx_name = b.fmt("{s}.3dsx", .{elf.name});
     const run_3dsxtool = b.addRunArtifact(tool_3dsxtool);
