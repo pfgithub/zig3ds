@@ -62,4 +62,4 @@ elf.linkLibrary(zig3ds_dep.artifact("citro2d"));
 
 # Alternatives
 
-[zig-3ds](https://github.com/zig-homebrew/zig-3ds) also lets you use zig to compile for 3ds, but 
+[zig-3ds](https://github.com/zig-homebrew/zig-3ds) also lets you use zig to compile for 3ds, but requires devkitPro be installed on your system.
