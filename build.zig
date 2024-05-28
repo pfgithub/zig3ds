@@ -29,13 +29,6 @@ fn addTool(b: *std.Build, dep: *std.Build.Dependency, tool_name: []const u8, fil
     return exe;
 }
 
-// pub const arch = {
-// .cpu_arch = .arm,
-// .os_tag = .freestanding,
-// .abi = .eabihf,
-// .cpu_model = .{ .explicit = &std.Target.arm.cpu.mpcore },
-// }
-
 pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
@@ -120,8 +113,6 @@ pub fn build(b: *std.Build) !void {
         "-D_HAVE_INITFINI_ARRAY",
         "-D_MB_CAPABLE",
     };
-    // newlib has a 16k line long make file so that's fun
-    // we need both newlib libc and newlib libm
 
     elf.addIncludePath(newlib_dep.path("newlib/libc/sys/arm"));
     elf.addIncludePath(newlib_dep.path("newlib/libc/machine/arm"));
@@ -130,10 +121,10 @@ pub fn build(b: *std.Build) !void {
     elf.addIncludePath(.{ .path = "src/config_fix" });
     elf.addIncludePath(default_font_bin_h.dirname());
     elf.addAssemblyFile(c_stdout);
-    // elf.addIncludePath(newlib_dep.path("include"));
-    // elf.addAssemblyFile(newlib_dep.path("libgloss/arm/crt0.S"));
     elf.addAssemblyFile(crtls_dep.path("3dsx_crt0.s"));
     {
+        // libctru has asm files thar are '.s' but need to be '.S'
+
         // this is for error checking. the real addObject is below
         // https://github.com/ziglang/zig/issues/20086
         const asm_obj = std.Build.Step.Run.create(b, "3ds_asm_files");
@@ -156,7 +147,6 @@ pub fn build(b: *std.Build) !void {
         });
         asm_os.addIncludePath(.{ .path = "src/asm_fix" });
         asm_os.step.dependOn(&asm_obj.step);
-        // the files are '.s' but need to be '.S'
         const install_dir = std.Build.InstallDir{ .custom = "tmp" };
 
         const tmpdir = b.makeTempPath();
@@ -183,7 +173,6 @@ pub fn build(b: *std.Build) !void {
         .file = examples_dep.path("graphics/printing/hello-world/source/main.c"),
         .flags = cflags,
     });
-    // -Wno-error=unused-command-line-argument
     elf.addCSourceFiles(.{
         .root = libctru_dep.path("libctru/source"),
         .files = libctru_files,
@@ -232,32 +221,6 @@ pub fn build(b: *std.Build) !void {
     run_step.step.dependOn(b.getInstallStep());
     const run_step_cmdl = b.step("run", "Run the app");
     run_step_cmdl.dependOn(&run_step.step);
-
-    // devkitpro gcc:
-    // specs specifies:
-    // - startfile: Object files to include at the start of the link
-    //   = 3dsx_crt0%O%s crti%O%s crtbegin%O%s
-    // - link: Options to pass to the linker
-    //   = + -T 3dsx.ld%s -d --emit-relocs --use-blx --gc-sections
-    // - sync.dmb:
-    //   - maybe it contains:
-    //       %rename link sync_sync_link
-    //       *link:
-    //       --defsym=__sync_synchronize=__sync_synchronize_dmb %(sync_sync_link)
-
-    //   "-mtp=soft", ✗ // 'soft' should be used (thread pointer access method)
-    //   "-specs=" ✗ // yikes. related to the mtp=soft it seems.
-    //       %include <sync-dmb.specs>
-    //
-    //       *link:
-    //       + -T 3dsx.ld%s -d --emit-relocs --use-blx --gc-sections
-    //
-    //       *startfile:
-    //       3dsx_crt0%O%s crti%O%s crtbegin%O%s
-    // portlibs:
-    //    https://github.com/devkitPro/pacman-packages/tree/master/3ds
-    //    we can probably skip this stuff maybe
-
 }
 
 fn captureStdoutNamed(run: *std.Build.Step.Run, name: []const u8) std.Build.LazyPath {
@@ -1121,34 +1084,3 @@ const libctru_files = &[_][]const u8{
     "util/utf/utf8_to_utf16.c",
     "util/utf/utf8_to_utf32.c",
 };
-
-// error: ld.lld: undefined symbol: svcCloseHandle
-// error: ld.lld: undefined symbol: svcQueryMemory
-// error: ld.lld: undefined symbol: initSystem
-// error: ld.lld: undefined symbol: svcBreak
-// error: ld.lld: undefined symbol: svcGetSystemTick
-// error: ld.lld: undefined symbol: svcWaitSynchronization
-// error: ld.lld: undefined symbol: svcSendSyncRequest
-// error: ld.lld: undefined symbol: svcReleaseMutex
-// error: ld.lld: undefined symbol: svcWaitSynchronizationN
-// error: ld.lld: undefined symbol: svcSleepThread
-// error: ld.lld: undefined symbol: svcSignalEvent
-// error: ld.lld: undefined symbol: svcClearEvent
-// error: ld.lld: undefined symbol: svcMapMemoryBlock
-// error: ld.lld: undefined symbol: svcUnmapMemoryBlock
-// error: ld.lld: undefined symbol: svcCreateEvent
-// error: ld.lld: undefined symbol: svcConnectToPort
-// error: ld.lld: undefined symbol: svcDuplicateHandle
-// error: ld.lld: undefined symbol: svcCreateAddressArbiter
-// error: ld.lld: undefined symbol: svcArbitrateAddressNoTimeout
-// error: ld.lld: undefined symbol: svcArbitrateAddress
-// error: ld.lld: undefined symbol: __ctru_exit
-// error: ld.lld: undefined symbol: __sf
-// error: ld.lld: undefined symbol: svcCreateThread
-// error: ld.lld: undefined symbol: svcExitThread
-// error: ld.lld: undefined symbol: __libc_lock_acquire_recursive
-// error: ld.lld: undefined symbol: __libc_lock_release_recursive
-// error: ld.lld: undefined symbol: _sbrk_r
-// error: ld.lld: undefined symbol: __getreent
-// error: ld.lld: undefined symbol: __libc_fini_array
-// error: ld.lld: undefined symbol: _exit
