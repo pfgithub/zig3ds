@@ -351,16 +351,7 @@ pub fn build(b: *std.Build) !void {
             .optimize = optimize,
         });
         build_helper.link(elf);
-        elf.addCSourceFiles(.{
-            .root = examples_dep.path(example.root_dir),
-            .files = example.c_source_files,
-            .flags = build_helper.cflags,
-        });
-
-        if (example.ttf_source_files.len > 0) {
-            std.log.warn("TODO ttf_source_files for: {s}", .{example.root_dir});
-            continue;
-        }
+        build_helper.addDir(&elf.root_module, examples_dep.path(example.root_dir));
 
         if (example.dependencies.c) {
             libc_includer.applyTo(&elf.root_module);
@@ -562,8 +553,6 @@ pub const T3dsDep = struct {
 };
 pub const T3dsExample = struct {
     root_dir: []const u8,
-    c_source_files: []const []const u8 = &.{},
-    ttf_source_files: []const []const u8 = &.{},
     dependencies: T3dsDep,
 
     pub fn name(self: *const T3dsExample, alloc: std.mem.Allocator) []const u8 {
@@ -584,55 +573,31 @@ pub const T3dsExample = struct {
 const t3ds_examples = &[_]T3dsExample{
     .{
         .root_dir = "graphics/printing/both-screen-text",
-        .c_source_files = &.{
-            "source/main.c",
-        },
         .dependencies = .{ .c = true, .m = true, .ctru = true },
     },
     .{
         .root_dir = "graphics/printing/colored-text",
-        .c_source_files = &.{
-            "source/main.c",
-        },
         .dependencies = .{ .c = true, .m = true, .ctru = true },
     },
-    // .{
-    //     .root_dir = "graphics/printing/custom-font",
-    //     .c_source_files = &.{
-    //         "source/main.c",
-    //     },
-    //     .ttf_source_files = &.{
-    //         "gfx/liberationitalic.ttf",
-    //     },
-    //     .dependencies = .{ .c = true, .m = true, .ctru = true },
-    // },
+    .{
+        .root_dir = "graphics/printing/custom-font",
+        .dependencies = .{ .c = true, .m = true, .ctru = true, .citro3d = true, .citro2d = true },
+    },
     .{
         .root_dir = "graphics/printing/hello-world",
-        .c_source_files = &.{
-            "source/main.c",
-        },
         .dependencies = .{ .c = true, .m = true, .ctru = true },
     },
     .{
         .root_dir = "graphics/printing/multiple-windows-text",
-        .c_source_files = &.{
-            "source/main.c",
-        },
         .dependencies = .{ .c = true, .m = true, .ctru = true },
     },
     .{
         // uh oh! crashes due to ubsan. works fine in ReleaseFast.
         .root_dir = "graphics/printing/system-font",
-        .c_source_files = &.{
-            "source/main.c",
-        },
         .dependencies = .{ .c = true, .m = true, .ctru = true, .citro3d = true, .citro2d = true },
     },
     .{
         .root_dir = "graphics/printing/wide-console",
-        .c_source_files = &.{
-            "source/main.c",
-        },
         .dependencies = .{ .c = true, .m = true, .ctru = true },
     },
 };
