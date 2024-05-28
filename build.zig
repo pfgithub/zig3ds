@@ -311,11 +311,7 @@ pub fn build(b: *std.Build) !void {
 
         libctru.addObject(asm_os);
 
-        libctru.addCSourceFiles(.{
-            .root = libctru_dep.path("libctru/source"),
-            .files = libctru_files,
-            .flags = build_helper.cflags,
-        });
+        build_helper.addFiles(&libctru.root_module, libctru_dep.path("libctru/source"), libctru_files);
     }
 
     // citro3d
@@ -335,11 +331,7 @@ pub fn build(b: *std.Build) !void {
     libc_includer.applyTo(&citro3d.root_module);
     libctru_includer.applyTo(&citro3d.root_module);
     citro3d_includer.applyTo(&citro3d.root_module);
-    citro3d.addCSourceFiles(.{
-        .root = citro3d_dep.path(""),
-        .files = citro3d_files,
-        .flags = build_helper.cflags,
-    });
+    build_helper.addFiles(&citro3d.root_module, citro3d_dep.path(""), citro3d_files);
 
     // citro2d
     const citro2d_dep = b.dependency("citro2d", .{});
@@ -484,11 +476,15 @@ pub const T3dsBuildHelper = struct {
         defer c_source_files.deinit();
 
         for (files) |file| {
-            if (std.mem.endsWith(u8, file, ".c")) {
+            if (std.mem.endsWith(u8, file, ".c") or std.mem.endsWith(u8, file, ".cpp")) {
                 c_source_files.append(file) catch @panic("oom");
             } else if (std.mem.endsWith(u8, file, ".v.pica")) {
                 const filebasename = std.fs.path.basename(file);
                 bh.addPica(mod, files_root.path(bh.owner, file), filebasename[0 .. filebasename.len - ".v.pica".len]);
+            } else if (std.mem.endsWith(u8, file, ".h")) {
+                // nothing to do
+            } else {
+                std.debug.panic("TODO ext: `{s}`", .{file});
             }
         }
 
