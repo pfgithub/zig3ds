@@ -110,7 +110,6 @@ pub fn build(b: *std.Build) !void {
     const @"3dstools_cxitool_dep" = b.dependency("3dstools-cxitool", .{});
     const general_tools_dep = b.dependency("general-tools", .{});
     const picasso_dep = b.dependency("picasso", .{});
-    const tex3ds_dep = b.dependency("tex3ds", .{});
     // elf -> .3dsx
     const tool_3dsxtool = addTool(b, @"3dstools_dep", "3dsxtool", &[_][]const u8{
         "src/3dsxtool.cpp",
@@ -151,15 +150,6 @@ pub fn build(b: *std.Build) !void {
         "source/picasso_assembler.cpp",
         "source/picasso_frontend.cpp",
     });
-    // .t3s -> .t3x, .h, .d
-    const tool_tex3ds = b.addExecutable(.{
-        // depends on imagemagick, yikes!
-        .name = "tex3ds",
-        .target = b.resolveTargetQuery(.{}),
-        .optimize = .ReleaseSafe,
-        .root_source_file = b.path("src/tex3ds_stub.zig"),
-    });
-    _ = tex3ds_dep;
 
     const libctru_dep = b.dependency("libctru", .{});
     const crtls_dep = b.dependency("devkitarm-crtls", .{});
@@ -175,7 +165,6 @@ pub fn build(b: *std.Build) !void {
         .tool_3dsxtool = tool_3dsxtool,
         .tool_bin2s = bin2s_tool,
         .tool_picasso = tool_picasso,
-        .tool_tex3ds = tool_tex3ds,
         .crtls_dep = crtls_dep,
         .cflags = b.dupeStrings(&.{
             "-mtp=soft",
@@ -409,7 +398,6 @@ pub const T3dsBuildHelper = struct {
     tool_3dsxtool: *std.Build.Step.Compile,
     tool_bin2s: *std.Build.Step.Compile,
     tool_picasso: *std.Build.Step.Compile,
-    tool_tex3ds: *std.Build.Step.Compile,
     crtls_dep: *std.Build.Dependency,
     cflags: []const []const u8,
 
@@ -463,22 +451,6 @@ pub const T3dsBuildHelper = struct {
             .file_name = bh.owner.fmt("{s}_shbin", .{name}),
         });
     }
-    pub fn addTex3ds(bh: *const T3dsBuildHelper, mod: *std.Build.Module, file: std.Build.LazyPath, name: []const u8) void {
-        const tex3ds_run_cmd = bh.owner.addRunArtifact(bh.tool_tex3ds);
-        tex3ds_run_cmd.addArg("-i");
-        tex3ds_run_cmd.addFileArg(file);
-        tex3ds_run_cmd.addArg("-H");
-        const out_file_h = tex3ds_run_cmd.addOutputFileArg(bh.owner.fmt("{s}.h", .{name}));
-        tex3ds_run_cmd.addArg("-d");
-        _ = tex3ds_run_cmd.addDepFileOutputArg(bh.owner.fmt("{s}.d", .{name}));
-        tex3ds_run_cmd.addArg("-o");
-        const out_file_t3x = tex3ds_run_cmd.addOutputFileArg(bh.owner.fmt("{s}.t3x", .{name}));
-        bh.addBin2s(mod, out_file_t3x, .{
-            .sym_name = bh.owner.fmt("{s}_t3x", .{name}),
-            .file_name = bh.owner.fmt("{s}_t3x", .{name}),
-        });
-        mod.addIncludePath(out_file_h.dirname());
-    }
 
     fn dotToUnderscore(str: []const u8, alloc: std.mem.Allocator) []const u8 {
         var res = std.ArrayList(u8).init(alloc);
@@ -506,12 +478,11 @@ pub const T3dsBuildHelper = struct {
         const gfx_files = readAll(bh.owner.allocator, gfx_dir.getPath(bh.owner));
         const romfs_files = readAll(bh.owner.allocator, romfs_dir.getPath(bh.owner));
 
-        if (gfx_files.len > 0) std.debug.panic("TODO gfx_files for: {s} (requires tex3ds)", .{dir.getPath(bh.owner)});
+        if (gfx_files.len > 0) std.debug.panic("TODO gfx_files for: {s} (requires tex3ds & has options)", .{dir.getPath(bh.owner)});
         if (romfs_files.len > 0) std.debug.panic("TODO romfs files for: {s}", .{dir.getPath(bh.owner)});
 
         bh.addFiles(mod, source_dir, source_files);
         bh.addDataFiles(mod, data_dir, data_files);
-        bh.addGraphicsFiles(mod, gfx_dir, gfx_files);
         mod.addIncludePath(include_dir);
     }
     fn readAll(alloc: std.mem.Allocator, path: []const u8) []const []const u8 {
@@ -535,18 +506,6 @@ pub const T3dsBuildHelper = struct {
 
     // https://github.com/devkitPro/devkitarm-rules/blob/master/3ds_rules
 
-    pub fn addGraphicsFiles(bh: *const T3dsBuildHelper, mod: *std.Build.Module, files_root: std.Build.LazyPath, files: []const []const u8) void {
-        for (files) |file| {
-            if (std.mem.endsWith(u8, file, ".t3s")) {
-                const filebasename = std.fs.path.basename(file);
-                bh.addTex3ds(mod, files_root.path(bh.owner, file), filebasename[0 .. filebasename.len - ".t3s".len]);
-            } else if (std.mem.endsWith(u8, file, ".png")) {
-                // ignored
-            } else {
-                std.debug.panic("TODO support graphics file: {s}", .{file});
-            }
-        }
-    }
     pub fn addDataFiles(bh: *const T3dsBuildHelper, mod: *std.Build.Module, files_root: std.Build.LazyPath, files: []const []const u8) void {
         for (files) |file| {
             bh.addBin2s(mod, files_root.path(bh.owner, file), .{
