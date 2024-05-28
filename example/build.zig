@@ -13,13 +13,9 @@ pub fn build(b: *std.Build) !void {
         .name = "sample",
         .target = build_helper.target,
         .optimize = optimize,
+        .root_source_file = b.path("src/main.zig"),
     });
     build_helper.link(elf);
-
-    elf.addCSourceFile(.{
-        .file = b.path("src/main.c"),
-        .flags = build_helper.cflags,
-    });
 
     libc_includer.applyTo(&elf.root_module);
     elf.linkLibrary(zig3ds_dep.artifact("c"));
