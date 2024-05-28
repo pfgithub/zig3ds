@@ -60,9 +60,9 @@ pub const CIncluder = struct {
     //! also, it probably doesn't support merging headers from a few
     //! different folders, which we also need for libc.
     //!
-    //! this zig version also limits it so it must output to `zig-out/header`
-    //! otherwise the headers won't be included. that may have been fixed
-    //! in a zig update.
+    //! zig also limits it so all headers in one build.zig need to output
+    //! to the same directory, but we're exporting multiple seperate
+    //! packages with seperate headers, and they need to stay seperate.
 
     const DefineMacro = struct { []const u8, ?[]const u8 };
     owner: *std.Build,
