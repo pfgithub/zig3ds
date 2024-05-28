@@ -309,8 +309,8 @@ pub fn build(b: *std.Build) !void {
     elf.link_emit_relocs = true; // --emit-relocs
     elf.root_module.strip = false; // can't combine 'strip-all' with 'emit-relocs'
     // TODO: -d: They assign space to common symbols even if a relocatable output file is specified
-    elf.link_gc_sections = true; // --gc-sections
     // TODO: --use-blx: The ‘--use-blx’ switch enables the linker to use ARM/Thumb BLX instructions (available on ARMv5t and above) in various situations.
+    // skipped gc-sections because it seems to have no effect on ReleaseSmall builds
 
     b.installArtifact(elf);
 
@@ -1036,6 +1036,7 @@ const newlib_libc_files = &[_][]const u8{
     "search/bsearch.c",
     "search/ndbm.c",
     "search/qsort.c",
+    "syscalls/sysclose.c",
 };
 
 const libctru_s_files = &[_]struct { []const u8, []const u8 }{
