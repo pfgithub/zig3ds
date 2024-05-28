@@ -6,7 +6,9 @@ Must use zig version 0.13.0-dev.274+c0da92f71
 
 Once mach nominates its next zig version, we will use `2024.5.0-mach` instead: https://machengine.org/about/nominated-zig/. `2024.3.0-mach` cannot be used because of missing `build.zig` features.
 
-Setup:
+This repo: `zig build run:graphics/printing/hello-world` (if `citra` is installed & in `PATH`)
+
+Your own project:
 
 1. Download `example/` from this repo
 2. Run: `zig fetch --save git+https://github.com/pfgithub/zig3ds#main`
