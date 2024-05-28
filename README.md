@@ -42,7 +42,6 @@ elf.linkLibrary(zig3ds_dep.artifact("citro2d"));
     error: warning(link): unexpected LLD stderr:
     ld.lld: warning: address (0x159e88) of section .bss is not a multiple of alignment (64)
     ```
-- [ ] Zig doesn't yet know it's linking libc, so things like `std.heap.c_alloator` probably can't be used.
 - [ ] `-fno-sanitize=undefined` is required to prevent a crash in `graphics/printing/system-font` and to prevent crashes on exit in all programs. 
 - [ ] both libgloss/libsysbase and newlib provide copies of the same functions. Which one is the right one? I chose newlib/libc:
   - `libgloss/libsysbase/unlink.c` defines `_unlink_r` to call `devoptab_list[dev]->unlink_r()`
@@ -56,6 +55,8 @@ elf.linkLibrary(zig3ds_dep.artifact("citro2d"));
 
 # TODO Features
 
+- [ ] Reduce usage of CIncluder, prefer `lib.installHeadersDirectory` + `elf.linkLibrary` instead.
+- [ ] Tell zig that it's linking libc so `std.heap.c_allocator` and other things can be used
 - [ ] Support smdh file generation
 - [ ] Support `tex3ds`. Unfortunately, it depends on imagemagick which depends on libbzip2 & libjpeg & libpng & libtiff & zlib, and imagemagick already has a huge makefile
 - [ ] Support emitting `.cia` files. This maybe requires `cxitool` and `makerom`.
