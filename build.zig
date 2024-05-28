@@ -172,15 +172,6 @@ pub fn build(b: *std.Build) !void {
         }),
     };
 
-    // libctru dependencies
-    const bin2s_run_cmd = b.addRunArtifact(bin2s_tool);
-    bin2s_run_cmd.addArg("-H");
-    const default_font_bin_h = bin2s_run_cmd.addOutputFileArg("default_font_bin.h");
-    bin2s_run_cmd.addArg("-n");
-    bin2s_run_cmd.addArg("default_font_bin");
-    bin2s_run_cmd.addFileArg(libctru_dep.path("libctru/data/default_font.bin"));
-    const c_stdout = captureStdoutNamed(bin2s_run_cmd, "default_font_bin.s");
-
     const asm_os = b.addObject(.{
         .name = "3ds_asm_files",
         .target = target_3ds,
@@ -306,12 +297,10 @@ pub fn build(b: *std.Build) !void {
         libc_includer.applyTo(&libctru.root_module);
         libctru_includer.applyTo(&libctru.root_module);
 
-        libctru.addIncludePath(default_font_bin_h.dirname());
-        libctru.addAssemblyFile(c_stdout);
-
         libctru.addObject(asm_os);
 
         build_helper.addFiles(&libctru.root_module, libctru_dep.path("libctru/source"), libctru_files);
+        build_helper.addDataFiles(&libctru.root_module, libctru_dep.path("libctru/data"), &.{"default_font.bin"});
     }
 
     // citro3d
@@ -468,6 +457,27 @@ pub const T3dsBuildHelper = struct {
             .sym_name = bh.owner.fmt("{s}_shbin", .{name}),
             .file_name = bh.owner.fmt("{s}_shbin", .{name}),
         });
+    }
+
+    fn dotToUnderscore(str: []const u8, alloc: std.mem.Allocator) []const u8 {
+        var res = std.ArrayList(u8).init(alloc);
+        defer res.deinit();
+        for (str) |char| {
+            switch (char) {
+                '.' => res.append('_') catch @panic("oom"),
+                else => res.append(char) catch @panic("oom"),
+            }
+        }
+        return res.toOwnedSlice() catch @panic("oom");
+    }
+
+    pub fn addDataFiles(bh: *const T3dsBuildHelper, mod: *std.Build.Module, files_root: std.Build.LazyPath, files: []const []const u8) void {
+        for (files) |file| {
+            bh.addBin2s(mod, files_root.path(bh.owner, file), .{
+                .sym_name = dotToUnderscore(file, bh.owner.allocator),
+                .file_name = dotToUnderscore(file, bh.owner.allocator),
+            });
+        }
     }
 
     /// in the future, this could add a custom step that does a directory scan to discover all the files
