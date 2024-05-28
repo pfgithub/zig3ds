@@ -18,7 +18,7 @@ Build your application with `zig build`, or run it with `zig build run` if `citr
 
 # Adding libraries
 
-zig3ds currently supports [citro3d](https://github.com/devkitPro/citro3d) and [citro2d](https://github.com/devkitPro/citro3d). citro3d is required to use citro2d.
+zig3ds currently supports [citro3d](https://github.com/devkitPro/citro3d) and [citro2d](https://github.com/devkitPro/citro2d). citro3d is required to use citro2d.
 
 ```zig
 const citro3d_includer = zig3ds.CIncluder.find(zig3ds_dep, "citro3d");
