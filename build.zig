@@ -342,7 +342,8 @@ pub fn build(b: *std.Build) !void {
     build_helper.addDir(&citro2d.root_module, citro2d_dep.path(""));
 
     // 4. build the game
-    for (t3ds_examples) |example| {
+    for (t3ds_examples) |example_t| {
+        const example = T3dsExample.from(example_t);
         const example_name = example.name(b.allocator);
 
         const elf = b.addExecutable(.{
@@ -569,37 +570,32 @@ pub const T3dsExample = struct {
 
         return res_al.toOwnedSlice() catch @panic("oom");
     }
+
+    pub fn from(v: ExampleT) T3dsExample {
+        var res_dependencies = T3dsDep{};
+        for (v[1]) |dep| {
+            inline for (std.meta.fields(T3dsDep)) |field| {
+                if (dep == @field(T3dsDepEnum, field.name)) {
+                    @field(res_dependencies, field.name) = true;
+                }
+            }
+        }
+        return .{
+            .root_dir = v[0],
+            .dependencies = res_dependencies,
+        };
+    }
 };
-const t3ds_examples = &[_]T3dsExample{
-    .{
-        .root_dir = "graphics/printing/both-screen-text",
-        .dependencies = .{ .c = true, .m = true, .ctru = true },
-    },
-    .{
-        .root_dir = "graphics/printing/colored-text",
-        .dependencies = .{ .c = true, .m = true, .ctru = true },
-    },
-    .{
-        .root_dir = "graphics/printing/custom-font",
-        .dependencies = .{ .c = true, .m = true, .ctru = true, .citro3d = true, .citro2d = true },
-    },
-    .{
-        .root_dir = "graphics/printing/hello-world",
-        .dependencies = .{ .c = true, .m = true, .ctru = true },
-    },
-    .{
-        .root_dir = "graphics/printing/multiple-windows-text",
-        .dependencies = .{ .c = true, .m = true, .ctru = true },
-    },
-    .{
-        // uh oh! crashes due to ubsan. works fine in ReleaseFast.
-        .root_dir = "graphics/printing/system-font",
-        .dependencies = .{ .c = true, .m = true, .ctru = true, .citro3d = true, .citro2d = true },
-    },
-    .{
-        .root_dir = "graphics/printing/wide-console",
-        .dependencies = .{ .c = true, .m = true, .ctru = true },
-    },
+const T3dsDepEnum = std.meta.FieldEnum(T3dsDep);
+const ExampleT = struct { []const u8, []const T3dsDepEnum };
+const t3ds_examples = &[_]ExampleT{
+    .{ "graphics/printing/both-screen-text", &.{ .c, .m, .ctru } },
+    .{ "graphics/printing/colored-text", &.{ .c, .m, .ctru } },
+    .{ "graphics/printing/custom-font", &.{ .c, .m, .ctru, .citro3d, .citro2d } },
+    .{ "graphics/printing/hello-world", &.{ .c, .m, .ctru } },
+    .{ "graphics/printing/multiple-windows-text", &.{ .c, .m, .ctru } },
+    .{ "graphics/printing/system-font", &.{ .c, .m, .ctru, .citro3d, .citro2d } },
+    .{ "graphics/printing/wide-console", &.{ .c, .m, .ctru } },
 };
 
 const libgloss_libsysbase_files = &[_][]const u8{
