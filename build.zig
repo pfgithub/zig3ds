@@ -56,13 +56,13 @@ fn findArbitrary(dep: *std.Build.Dependency, comptime ty: type, name: []const u8
 
 pub const CIncluder = struct {
     //! addStaticLibrary + linkLibrary() has this functionality already
-    //! however, it doesn't support define_macros, and it seems to be
-    //! designed for one per build.zig. also, it probably doesn't support
-    //! merging headers from a few different folders.
-
-    // note: we'll have to expose these with a hack
-    // https://github.com/ziglang/zig/issues/19859
-    // find some u64 to hide a pointer in and use intFromPtr/ptrFromInt
+    //! however, it doesn't support define_macros, which we need for libc.
+    //! also, it probably doesn't support merging headers from a few
+    //! different folders, which we also need for libc.
+    //!
+    //! this zig version also limits it so it must output to `zig-out/header`
+    //! otherwise the headers won't be included. that may have been fixed
+    //! in a zig update.
 
     const DefineMacro = struct { []const u8, ?[]const u8 };
     owner: *std.Build,
