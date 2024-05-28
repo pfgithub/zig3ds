@@ -1,3 +1,9 @@
+# before releasing checklist
+
+- [ ] fix the crash at exit
+- [ ] fix the 'warn bss alignment' thing
+- [ ] delete & redownload newlib & libctru, then make build.zig patch them somehow
+
 # not working yet
 
 https://github.com/zig-homebrew/zig-3ds does work (with some updates for recent zig), but it requires devkitpro installed on the system

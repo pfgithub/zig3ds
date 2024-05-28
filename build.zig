@@ -217,6 +217,7 @@ pub fn build(b: *std.Build) !void {
             .{ "_LDBL_EQ_DBL", null },
             .{ "_HAVE_INITFINI_ARRAY", null },
             .{ "_MB_CAPABLE", null },
+            .{ "__3DS__", null },
         },
         .add_include_paths = &.{
             newlib_dep.path("newlib/libc/sys/arm"),
@@ -301,6 +302,29 @@ pub fn build(b: *std.Build) !void {
             .flags = cflags,
         });
     }
+
+    // citro3d
+    const citro3d_dep = b.dependency("citro3d", .{});
+    const citro3d_includer = CIncluder.createCIncluder(b, .{
+        .add_include_paths = &.{
+            citro3d_dep.path("include"),
+        },
+    });
+    citro3d_includer.expose("citro3d");
+    const citro3d = b.addStaticLibrary(.{
+        .name = "citro3d",
+        .target = target_3ds,
+        .optimize = optimize,
+    });
+    b.installArtifact(citro3d);
+    citro3d_includer.applyTo(&citro3d.root_module);
+    libc_includer.applyTo(&citro3d.root_module);
+    libctru_includer.applyTo(&citro3d.root_module);
+    citro3d.addCSourceFiles(.{
+        .root = citro3d_dep.path(""),
+        .files = citro3d_files,
+        .flags = cflags,
+    });
 
     // 4. build the game
     const build_helper = try b.allocator.create(T3dsBuildHelper);
@@ -1336,4 +1360,60 @@ const libctru_files = &[_][]const u8{
     "util/utf/utf32_to_utf8.c",
     "util/utf/utf8_to_utf16.c",
     "util/utf/utf8_to_utf32.c",
+};
+const citro3d_files = &[_][]const u8{
+    // makefile includes all .{c,cpp,s,*}
+    // cd ~/.cache/zig/p/1220b31a0367edb9f4d9ba864e3fa08a678c5037597e5a08dffb8797846facce52ba
+    // ls source/**/*.* | copy
+    "source/attribs.c",
+    "source/base.c",
+    "source/buffers.c",
+    "source/drawArrays.c",
+    "source/drawElements.c",
+    "source/effect.c",
+    "source/fog.c",
+    "source/framebuffer.c",
+    "source/gas.c",
+    "source/immediate.c",
+    "source/internal.h",
+    "source/light.c",
+    "source/lightenv.c",
+    "source/lightlut.c",
+    "source/maths/mtx_fromquat.c",
+    "source/maths/mtx_inverse.c",
+    "source/maths/mtx_lookat.c",
+    "source/maths/mtx_multiply.c",
+    "source/maths/mtx_multiplyfvec3.c",
+    "source/maths/mtx_multiplyfvec4.c",
+    "source/maths/mtx_ortho.c",
+    "source/maths/mtx_orthotilt.c",
+    "source/maths/mtx_persp.c",
+    "source/maths/mtx_perspstereo.c",
+    "source/maths/mtx_perspstereotilt.c",
+    "source/maths/mtx_persptilt.c",
+    "source/maths/mtx_rotate.c",
+    "source/maths/mtx_rotatex.c",
+    "source/maths/mtx_rotatey.c",
+    "source/maths/mtx_rotatez.c",
+    "source/maths/mtx_scale.c",
+    "source/maths/mtx_translate.c",
+    "source/maths/mtx_transpose.c",
+    "source/maths/quat_crossfvec3.c",
+    "source/maths/quat_fromaxisangle.c",
+    "source/maths/quat_frommtx.c",
+    "source/maths/quat_frompitchyawroll.c",
+    "source/maths/quat_lookat.c",
+    "source/maths/quat_multiply.c",
+    "source/maths/quat_pow.c",
+    "source/maths/quat_rotate.c",
+    "source/maths/quat_rotatex.c",
+    "source/maths/quat_rotatey.c",
+    "source/maths/quat_rotatez.c",
+    "source/mtxstack.c",
+    "source/proctex.c",
+    "source/renderqueue.c",
+    "source/tex3ds.c",
+    "source/texenv.c",
+    "source/texture.c",
+    "source/uniforms.c",
 };
