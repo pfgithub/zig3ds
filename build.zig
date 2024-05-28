@@ -271,6 +271,7 @@ pub fn build(b: *std.Build) !void {
         .files = newlib_libc_files,
         .flags = build_helper.cflags,
     });
+    libc.addAssemblyFile(crtls_dep.path("3dsx_crt0.s"));
     libc.linkLibrary(libgloss_libsysbase);
     b.installArtifact(libc);
 
@@ -304,8 +305,6 @@ pub fn build(b: *std.Build) !void {
     {
         libc_includer.applyTo(&libctru.root_module);
         libctru_includer.applyTo(&libctru.root_module);
-
-        libctru.addAssemblyFile(crtls_dep.path("3dsx_crt0.s"));
 
         libctru.addIncludePath(default_font_bin_h.dirname());
         libctru.addAssemblyFile(c_stdout);
