@@ -183,23 +183,9 @@ pub fn build(b: *std.Build) !void {
 
         // this run step is for error checking only.
         // https://github.com/ziglang/zig/issues/20086
-        const asm_obj = std.Build.Step.Run.create(b, "3ds_asm_files");
-        asm_obj.addArgs(&.{
-            b.graph.zig_exe,
-            "cc",
-            "-c",
-            "-target",
-            try target_3ds.query.zigTriple(b.allocator),
-            b.fmt("-mcpu={s}", .{try target_3ds.query.serializeCpuAlloc(b.allocator)}),
-            "-I" ++ "src/asm_fix",
-        });
-        asm_obj.addArg("-o");
-        _ = asm_obj.addOutputFileArg("3ds_asm_files.o");
-
         const asm_files_dir = b.addWriteFiles();
 
         asm_os.addIncludePath(b.path("src/asm_fix"));
-        asm_os.step.dependOn(&asm_obj.step);
 
         const tmpdir = b.makeTempPath();
         var tmpdir_dir = try std.fs.cwd().openDir(tmpdir, .{});
@@ -210,8 +196,6 @@ pub fn build(b: *std.Build) !void {
             const asm_file_lazypath = asm_files_dir.addCopyFile(src_path, dst_path);
 
             asm_os.addAssemblyFile(asm_file_lazypath);
-
-            asm_obj.addFileArg(asm_file_lazypath);
         }
     }
 

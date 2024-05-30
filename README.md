@@ -2,7 +2,7 @@ zig3ds allows you to develop applications for 3ds with only zig and no other sys
 
 # Usage
 
-Must use zig version 0.13.0-dev.340+d750a78b2
+Must use zig version 0.13.0-dev.344+b2588de6c
 
 Once mach nominates its next zig version, we will use `2024.5.0-mach` instead: https://machengine.org/about/nominated-zig/. `2024.3.0-mach` cannot be used because of missing `build.zig` features.
 
