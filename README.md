@@ -30,6 +30,8 @@ elf.linkLibrary(zig3ds_dep.artifact("citro2d"));
 
 # Known Issues
 
+- [ ] Citro3d translate-c bindings cause compile error: https://github.com/ziglang/zig/issues/16302
+  - [ ] This can be worked around by only including citro3d/citro2d from C
 - [ ] Zig doesn't seem to have an equivalent of `-mtp=soft`. This is probably bad?
 - [ ] A [bad patch](https://github.com/pfgithub/libctru/commit/13e35d7f19c51c334bf575fcf80b653edc0a0abe) is applied to libctru to disable its threadlocals because otherwise it doesn't compile. This patch breaks multithreaded use of any libctru functions that use path buffers. The error:
   - ```
